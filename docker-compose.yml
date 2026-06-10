@@ -1,0 +1,57 @@
+version: '3.8'
+
+# ============================================================
+# Docker Compose untuk local development
+# Jalankan: docker compose up -d
+# ============================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: casn_postgres
+    environment:
+      POSTGRES_USER: casn_user
+      POSTGRES_PASSWORD: casn_password
+      POSTGRES_DB: casn_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U casn_user -d casn_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: casn_redis
+    command: redis-server --appendonly yes
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO aktifkan saat Phase 4 (upload file)
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: casn_minio
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     MINIO_ROOT_USER: casn_minio
+  #     MINIO_ROOT_PASSWORD: casn_minio_secret
+  #   ports:
+  #     - '9000:9000'
+  #     - '9001:9001'
+  #   volumes:
+  #     - minio_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+  # minio_data:

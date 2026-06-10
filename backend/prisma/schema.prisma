@@ -1,0 +1,615 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS — harus identik dengan frontend/src/types/enums.ts
+// ============================================================
+
+enum UserRole {
+  SUPER_ADMIN
+  LOGISTICS
+  COORDINATOR
+  TECHNICAL_IT
+  TECHNICAL_ELECTRICAL
+  TECHNICAL_SARPRAS
+  REGISTRAR
+  SUPERVISOR
+}
+
+enum LocationStatus {
+  PREPARATION
+  INSTALLATION_IN_PROGRESS
+  READY
+  CLOSED
+}
+
+enum InstallationMilestone {
+  LAYOUT_20
+  INFRASTRUCTURE_50
+  DEPLOYMENT_80
+  COMPLETED_100
+}
+
+enum TicketSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketCategory {
+  IT_SOFTWARE
+  IT_HARDWARE
+  ELECTRICAL
+  NETWORK
+  SARPRAS
+  OTHER
+}
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  ESCALATED
+  CLOSED
+}
+
+enum ShipmentStatus {
+  PACKING
+  IN_TRANSIT
+  ARRIVED
+  RECEIVED
+  RETURNED
+}
+
+enum InventoryCategory {
+  LAPTOP_CLIENT
+  SERVER
+  UPS
+  NETWORK
+  METAL_DETECTOR
+  CCTV
+  TENTA
+  AC
+  GENERATOR
+  OTHER
+}
+
+enum StagePhase {
+  PERSIAPAN
+  INSTALASI
+  UJI_FUNGSI
+  PELAKSANAAN
+  DEINSTALASI
+  SERAH_TERIMA
+}
+
+enum StageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum BeritaAcaraType {
+  BA_PENGANTARAN
+  BA_UJI_FUNGSI
+  BA_HARIAN
+  BA_DEINSTALASI
+  BA_SERAH_TERIMA
+}
+
+enum BeritaAcaraStatus {
+  DRAFT
+  FINAL
+}
+
+enum TransportMode {
+  DARAT
+  LAUT
+  UDARA
+}
+
+enum DeliveryType {
+  CARGO
+  EKSPEDISI
+  DIANTAR_LANGSUNG
+}
+
+enum ItemOwnership {
+  MILIK_SENDIRI
+  SEWA
+}
+
+enum ItemCondition {
+  BAIK
+  RUSAK_RINGAN
+  RUSAK_BERAT
+}
+
+enum PersonnelRole {
+  KOORDINATOR
+  TENAGA_IT
+  ELEKTRIKAL
+  TENAGA_SARPRAS
+}
+
+enum DocumentCategory {
+  KONTRAK
+  SURAT_TUGAS
+  BERITA_ACARA
+  LAPORAN
+  FOTO_DOKUMENTASI
+  LAINNYA
+}
+
+// ============================================================
+// USERS & AUTH
+// ============================================================
+
+model User {
+  id          String    @id @default(uuid())
+  email       String    @unique
+  password    String
+  name        String
+  phone       String?
+  role        UserRole
+  instansi    String?
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+
+  // Lokasi tempat user bertugas (banyak user → satu lokasi)
+  locationId String?
+  location   Location? @relation("UserWorkLocation", fields: [locationId], references: [id])
+
+  // Relations
+  auditLogs             AuditLog[]
+  assignedTickets       IncidentTicket[]    @relation("AssignedTechnician")
+  reportedTickets       IncidentTicket[]    @relation("TicketReporter")
+  createdShipments      LogisticsShipment[]
+  attendanceScans       AttendanceLog[]     @relation("Scanner")
+  createdBeritaAcara    BeritaAcara[]
+  uploadedDocuments     LocationDocument[]
+  completedStages       LocationStage[]
+  coordinatedLocations  Location[]          @relation("LocationCoordinator")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@index([locationId])
+}
+
+// ============================================================
+// LOCATIONS
+// ============================================================
+
+model Location {
+  id            String         @id @default(uuid())
+  code          String         @unique
+  name          String
+  province      String
+  city          String
+  address       String
+  latitude      Decimal        @db.Decimal(10, 8)
+  longitude     Decimal        @db.Decimal(11, 8)
+  status        LocationStatus @default(PREPARATION)
+  capacity      Int            @default(0)
+  startDate     DateTime?
+  endDate       DateTime?
+  metadata      Json?
+
+  coordinatorId String?
+  coordinator   User?   @relation("LocationCoordinator", fields: [coordinatorId], references: [id])
+
+  // Relations
+  users                User[]                @relation("UserWorkLocation")
+  installationProgress InstallationProgress[]
+  inventoryChecklists  InventoryChecklist[]
+  incidentTickets      IncidentTicket[]
+  attendanceLogs       AttendanceLog[]
+  shipments            LogisticsShipment[]
+  stages               LocationStage[]
+  beritaAcara          BeritaAcara[]
+  locationItems        LocationItem[]
+  personnel            Personnel[]
+  documents            LocationDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([province, city])
+  @@index([status])
+  @@index([coordinatorId])
+}
+
+// ============================================================
+// INSTALLATION PROGRESS
+// ============================================================
+
+model InstallationProgress {
+  id         String                @id @default(uuid())
+  locationId String
+  location   Location              @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  milestone  InstallationMilestone
+  percentage Int                   @default(0)
+  notes      String?
+  photos     Json?                 // Array<{ url, lat, lng, timestamp }>
+  completedBy String?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([locationId, milestone])
+  @@index([locationId])
+}
+
+// ============================================================
+// INCIDENT TICKETS
+// ============================================================
+
+model IncidentTicket {
+  id           String         @id @default(uuid())
+  ticketNumber String         @unique
+  locationId   String
+  location     Location       @relation(fields: [locationId], references: [id])
+
+  reportedBy   String
+  reporter     User           @relation("TicketReporter", fields: [reportedBy], references: [id])
+  reporterName String
+
+  assignedTo   String?
+  assignee     User?          @relation("AssignedTechnician", fields: [assignedTo], references: [id])
+
+  severity     TicketSeverity
+  category     TicketCategory
+  status       TicketStatus   @default(OPEN)
+  title        String
+  description  String
+  photos       Json?          // string[]
+
+  slaMinutes   Int            @default(30)
+  slaExpiresAt DateTime
+  resolvedAt   DateTime?
+  resolutionNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([locationId, status])
+  @@index([assignedTo])
+  @@index([slaExpiresAt])
+}
+
+// ============================================================
+// INVENTORY
+// ============================================================
+
+model InventoryItem {
+  id           String            @id @default(uuid())
+  code         String            @unique
+  name         String
+  category     InventoryCategory
+  standardQty  Int
+  specifications Json?
+  imageUrl     String?
+
+  checklists   InventoryChecklist[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InventoryChecklist {
+  id          String        @id @default(uuid())
+  locationId  String
+  location    Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        InventoryItem @relation(fields: [itemId], references: [id])
+
+  expectedQty Int
+  receivedQty Int     @default(0)
+  damagedQty  Int     @default(0)
+  missingQty  Int     @default(0)
+  notes       String?
+  photos      Json?   // string[]
+
+  verifiedBy  String?
+  verifiedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([locationId, itemId])
+  @@index([locationId])
+}
+
+// ============================================================
+// LOGISTICS SHIPMENTS
+// ============================================================
+
+model LogisticsShipment {
+  id              String         @id @default(uuid())
+  shipmentNumber  String         @unique
+  originWarehouseId String
+  destinationLocationId String
+  destination     Location       @relation(fields: [destinationLocationId], references: [id])
+
+  createdById String
+  createdBy   User             @relation(fields: [createdById], references: [id])
+
+  status        ShipmentStatus @default(PACKING)
+  manifestItems Json           // Array<{ itemId, qty }>
+  trackingNotes String?
+
+  shippedAt   DateTime?
+  arrivedAt   DateTime?
+  receivedBy  String?
+  receivedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([destinationLocationId, status])
+  @@index([originWarehouseId])
+}
+
+// ============================================================
+// ATTENDANCE
+// ============================================================
+
+model AttendanceLog {
+  id              String   @id @default(uuid())
+  locationId      String
+  location        Location @relation(fields: [locationId], references: [id])
+
+  participantId   String
+  barcodeValue    String   @unique
+  participantName String
+  session         Int
+  scanTime        DateTime @default(now())
+  notes           String?
+
+  scannedBy String
+  scanner   User   @relation("Scanner", fields: [scannedBy], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([locationId, session])
+  @@index([barcodeValue])
+  @@index([scanTime])
+}
+
+// ============================================================
+// TAHAPAN KERJA (STAGES)
+// ============================================================
+
+model LocationStage {
+  id          String      @id @default(uuid())
+  locationId  String
+  location    Location    @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  phase       StagePhase
+  status      StageStatus @default(NOT_STARTED)
+  progress    Int         @default(0)
+  notes       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  completedById String?
+  completedBy   User?   @relation(fields: [completedById], references: [id])
+
+  photos StagePhoto[]
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([locationId, phase])
+  @@index([locationId])
+}
+
+model StagePhoto {
+  id          String        @id @default(uuid())
+  stageId     String
+  stage       LocationStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  url         String
+  caption     String
+  takenAt     DateTime
+  uploadedBy  String
+
+  createdAt DateTime @default(now())
+
+  @@index([stageId])
+}
+
+// ============================================================
+// BERITA ACARA
+// ============================================================
+
+model BeritaAcara {
+  id             String            @id @default(uuid())
+  documentNumber String            @unique
+  type           BeritaAcaraType
+  status         BeritaAcaraStatus @default(DRAFT)
+  locationId     String
+  location       Location          @relation(fields: [locationId], references: [id])
+  title          String
+  date           DateTime
+  body           String
+  fileUrl        String?
+
+  // Khusus BA Pengantaran
+  transportMode  TransportMode?
+  deliveryType   DeliveryType?
+  courierName    String?
+  vehicleInfo    String?
+  items          Json?             // Array<{ name, qty, unit }>
+
+  // Penandatangan
+  pihakPertamaNama     String
+  pihakPertamaJabatan  String
+  pihakPertamaInstansi String
+  pihakKeduaNama       String
+  pihakKeduaJabatan    String
+  pihakKeduaInstansi   String
+
+  photos Json?  // StagePhoto[]
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([locationId, type])
+  @@index([status])
+}
+
+// ============================================================
+// BARANG DI TITIK LOKASI
+// ============================================================
+
+model LocationItem {
+  id              String        @id @default(uuid())
+  locationId      String
+  location        Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  name            String
+  qty             Int
+  unit            String
+  ownership       ItemOwnership @default(MILIK_SENDIRI)
+  condition       ItemCondition @default(BAIK)
+  installationPct Int           @default(0)
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([locationId])
+}
+
+// ============================================================
+// PERSONEL SDM
+// ============================================================
+
+model Personnel {
+  id         String        @id @default(uuid())
+  locationId String
+  location   Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  name       String
+  role       PersonnelRole
+  phone      String?
+  notes      String?
+
+  attendances PersonnelAttendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([locationId])
+}
+
+model PersonnelAttendance {
+  id          String    @id @default(uuid())
+  personnelId String
+  personnel   Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  locationId  String
+  date        DateTime  @db.Date
+  present     Boolean   @default(false)
+  notes       String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([personnelId, date])
+  @@index([locationId, date])
+}
+
+// ============================================================
+// DOKUMEN LOKASI
+// ============================================================
+
+model LocationDocument {
+  id          String           @id @default(uuid())
+  locationId  String
+  location    Location         @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  category    DocumentCategory
+  name        String
+  fileName    String
+  fileUrl     String
+  fileSizeKb  Int?
+  notes       String?
+
+  uploadedById String
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([locationId, category])
+}
+
+// ============================================================
+// MASTER DATA — STANDAR ITEM & TENAGA TEKNIS PER KAPASITAS
+// Sumber: Dokumen Pengumuman Katalog Elektronik Sektoral BKN
+// No 113/D23/DPPP/04/2026 (Lampiran 2 — 38 item standar) dan
+// BAB 4 atribut 2.3 Tenaga Teknis (tier 100–500 peserta/sesi).
+// ============================================================
+
+model MasterItem {
+  id        String        @id @default(uuid())
+  no        Int           @unique // urutan sesuai Lampiran 2
+  name      String
+  unit      String
+  ownership ItemOwnership @default(SEWA)
+
+  // Kuantitas standar per tier kapasitas (peserta per sesi)
+  qty100 Int
+  qty200 Int
+  qty300 Int
+  qty400 Int
+  qty500 Int
+
+  isActive Boolean @default(true)
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MasterPersonnelRequirement {
+  id          String @id @default(uuid())
+  capacity    Int    @unique // 100 / 200 / 300 / 400 / 500
+  koordinator Int
+  tenagaIt    Int
+  elektrikal  Int
+  sarpras     Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id         String @id @default(uuid())
+  userId     String
+  user       User   @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
