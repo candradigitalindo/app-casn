@@ -165,7 +165,7 @@ model User {
 
   // Lokasi tempat user bertugas (banyak user → satu lokasi)
   locationId String?
-  location   Location? @relation("UserWorkLocation", fields: [locationId], references: [id])
+  location   Location? @relation("UserWorkLocation", fields: [locationId], references: [id], onDelete: SetNull)
 
   // Relations
   auditLogs             AuditLog[]
@@ -258,7 +258,7 @@ model IncidentTicket {
   id           String         @id @default(uuid())
   ticketNumber String         @unique
   locationId   String
-  location     Location       @relation(fields: [locationId], references: [id])
+  location     Location       @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   reportedBy   String
   reporter     User           @relation("TicketReporter", fields: [reportedBy], references: [id])
@@ -339,7 +339,7 @@ model LogisticsShipment {
   shipmentNumber  String         @unique
   originWarehouseId String
   destinationLocationId String
-  destination     Location       @relation(fields: [destinationLocationId], references: [id])
+  destination     Location       @relation(fields: [destinationLocationId], references: [id], onDelete: Cascade)
 
   createdById String
   createdBy   User             @relation(fields: [createdById], references: [id])
@@ -367,7 +367,7 @@ model LogisticsShipment {
 model AttendanceLog {
   id              String   @id @default(uuid())
   locationId      String
-  location        Location @relation(fields: [locationId], references: [id])
+  location        Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   participantId   String
   barcodeValue    String   @unique
@@ -436,11 +436,12 @@ model BeritaAcara {
   type           BeritaAcaraType
   status         BeritaAcaraStatus @default(DRAFT)
   locationId     String
-  location       Location          @relation(fields: [locationId], references: [id])
+  location       Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
   title          String
   date           DateTime
   body           String
   fileUrl        String?
+  fileName       String?
 
   // Khusus BA Pengantaran
   transportMode  TransportMode?
@@ -520,6 +521,9 @@ model PersonnelAttendance {
   date        DateTime  @db.Date
   present     Boolean   @default(false)
   notes       String?
+  // Bukti kehadiran yang di-upload admin (base64 data URL)
+  fileUrl     String?
+  fileName    String?
 
   createdAt DateTime @default(now())
 

@@ -3,6 +3,9 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bullmq';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import configuration from './config/configuration';
 import { PrismaModule } from './database/prisma.module';
@@ -21,6 +24,9 @@ import { EventsModule } from './modules/events/events.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { JobsModule } from './jobs/jobs.module';
 
+const FRONTEND_DIST =
+  process.env.FRONTEND_DIST || join(__dirname, '..', '..', 'frontend', 'out');
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -30,6 +36,23 @@ import { JobsModule } from './jobs/jobs.module';
     }),
 
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+
+    // Deployment monolith: sajikan hasil `next build` (static export) dari
+    // frontend/out. Hanya aktif di production — di dev frontend dilayani
+    // `next dev` di port 3000.
+    ...(process.env.NODE_ENV === 'production' && existsSync(FRONTEND_DIST)
+      ? [
+          ServeStaticModule.forRoot({
+            rootPath: FRONTEND_DIST,
+            exclude: ['/api/(.*)', '/api-docs/(.*)'],
+            serveStaticOptions: {
+              // Next.js di-export dengan trailingSlash: setiap route berupa
+              // folder/index.html, jadi /locations → 301 /locations/ → index.html.
+              extensions: ['html'],
+            },
+          }),
+        ]
+      : []),
 
     // BullMQ global connection (semua queue pakai ini jika tidak override)
     BullModule.forRootAsync({

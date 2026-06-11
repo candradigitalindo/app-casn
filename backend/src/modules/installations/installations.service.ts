@@ -2,8 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { ok } from '../../common/dto/api-response.dto';
 import { UpdateProgressDto, PhotoEvidenceDto } from './installations.dto';
-import { InstallationMilestone, LocationStatus } from '@prisma/client';
+import { InstallationMilestone } from '@prisma/client';
 import { EventsGateway } from '../events/events.gateway';
+import { syncLocationStatusFromStages } from '../../common/utils/location-status.util';
 
 const MILESTONE_ORDER: InstallationMilestone[] = [
   'LAYOUT_20',
@@ -65,11 +66,50 @@ export class InstallationsService {
       },
     });
 
-    // Update location status based on highest completed milestone
-    await this.syncLocationStatus(dto.locationId);
+    // Sinkronkan milestone instalasi → fase INSTALASI tahapan pekerjaan,
+    // lalu turunkan status lokasi lewat aturan tunggal berbasis tahapan.
+    await this.syncInstallationStage(dto.locationId);
+    await syncLocationStatusFromStages(this.prisma, dto.locationId);
 
     this.events.emitInstallationUpdated(dto.locationId, data);
     return ok(data, 'Progress instalasi diperbarui');
+  }
+
+  // Fase INSTALASI di tahapan pekerjaan mengikuti rata-rata 4 milestone
+  // instalasi — satu sumber data, tidak lagi diisi ganda.
+  private async syncInstallationStage(locationId: string) {
+    const progresses = await this.prisma.installationProgress.findMany({
+      where: { locationId },
+    });
+    const totalPct = progresses.reduce((s, p) => s + p.percentage, 0);
+    const avg = Math.round(totalPct / MILESTONE_ORDER.length);
+    const allComplete =
+      progresses.length === MILESTONE_ORDER.length &&
+      progresses.every((p) => p.percentage >= 100);
+
+    const status = allComplete
+      ? 'COMPLETED'
+      : avg > 0
+        ? 'IN_PROGRESS'
+        : 'NOT_STARTED';
+
+    await this.prisma.locationStage.upsert({
+      where: { locationId_phase: { locationId, phase: 'INSTALASI' } },
+      create: {
+        locationId,
+        phase: 'INSTALASI',
+        status,
+        progress: Math.min(avg, 100),
+        ...(status !== 'NOT_STARTED' ? { startedAt: new Date() } : {}),
+        ...(allComplete ? { completedAt: new Date() } : {}),
+      },
+      update: {
+        status,
+        progress: Math.min(avg, 100),
+        ...(status === 'IN_PROGRESS' ? { completedAt: null } : {}),
+        ...(allComplete ? { completedAt: new Date() } : {}),
+      },
+    });
   }
 
   async addPhoto(progressId: string, photo: PhotoEvidenceDto) {
@@ -150,14 +190,4 @@ export class InstallationsService {
     return ok(alerts);
   }
 
-  private async syncLocationStatus(locationId: string) {
-    const progresses = await this.prisma.installationProgress.findMany({ where: { locationId } });
-    const maxPct = progresses.reduce((max, p) => Math.max(max, p.percentage), 0);
-
-    let status: LocationStatus = 'PREPARATION';
-    if (maxPct >= 100) status = 'READY';
-    else if (maxPct > 0) status = 'INSTALLATION_IN_PROGRESS';
-
-    await this.prisma.location.update({ where: { id: locationId }, data: { status } });
-  }
 }

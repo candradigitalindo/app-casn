@@ -23,4 +23,7 @@ export class UpsertAttendanceDto {
   @ApiProperty() @IsString() date: string;
   @ApiProperty() @IsBoolean() present: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
+  // Bukti kehadiran (base64 data URL) yang di-upload admin
+  @ApiPropertyOptional() @IsOptional() @IsString() fileUrl?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() fileName?: string;
 }

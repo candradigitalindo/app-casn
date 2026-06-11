@@ -20,8 +20,10 @@ export class CreateBeritaAcaraDto {
   @ApiProperty() @IsString() locationId: string;
   @ApiProperty() @IsString() title: string;
   @ApiProperty() @IsString() date: string;
-  @ApiProperty() @IsString() body: string;
+  // BA berupa upload file — uraian dan penandatangan tidak lagi diisi dari form.
+  @ApiPropertyOptional() @IsOptional() @IsString() body?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() fileUrl?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() fileName?: string;
   @ApiPropertyOptional({ enum: TransportMode }) @IsOptional() @IsEnum(TransportMode) transportMode?: TransportMode;
   @ApiPropertyOptional({ enum: DeliveryType }) @IsOptional() @IsEnum(DeliveryType) deliveryType?: DeliveryType;
   @ApiPropertyOptional() @IsOptional() @IsString() courierName?: string;
@@ -30,13 +32,13 @@ export class CreateBeritaAcaraDto {
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => BeritaAcaraItemDto)
   items?: BeritaAcaraItemDto[];
 
-  @ApiProperty({ type: BeritaAcaraPartyDto })
-  @ValidateNested() @Type(() => BeritaAcaraPartyDto)
-  pihakPertama: BeritaAcaraPartyDto;
+  @ApiPropertyOptional({ type: BeritaAcaraPartyDto })
+  @IsOptional() @ValidateNested() @Type(() => BeritaAcaraPartyDto)
+  pihakPertama?: BeritaAcaraPartyDto;
 
-  @ApiProperty({ type: BeritaAcaraPartyDto })
-  @ValidateNested() @Type(() => BeritaAcaraPartyDto)
-  pihakKedua: BeritaAcaraPartyDto;
+  @ApiPropertyOptional({ type: BeritaAcaraPartyDto })
+  @IsOptional() @ValidateNested() @Type(() => BeritaAcaraPartyDto)
+  pihakKedua?: BeritaAcaraPartyDto;
 
   @ApiPropertyOptional() @IsOptional() @IsArray() photos?: any[];
 }

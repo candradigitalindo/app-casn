@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { ok } from '../../common/dto/api-response.dto';
 import { UpdateStageDto, AddStagePhotoDto } from './stages.dto';
 import { StageStatus, StagePhase } from '@prisma/client';
+import { syncLocationStatusFromStages } from '../../common/utils/location-status.util';
 
 const PHASES: StagePhase[] = [
   'PERSIAPAN',
@@ -89,6 +90,9 @@ export class StagesService {
       data,
       include: { photos: true },
     });
+
+    await syncLocationStatusFromStages(this.prisma, stage.locationId);
+
     return ok(updated, 'Tahapan diperbarui');
   }
 

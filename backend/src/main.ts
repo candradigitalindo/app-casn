@@ -4,6 +4,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { DecimalTransformInterceptor } from './common/interceptors/decimal-transform.interceptor';
@@ -18,6 +19,11 @@ async function bootstrap() {
 
   // Cookie parser (untuk refresh token via httpOnly cookie)
   app.use(cookieParser());
+
+  // File (BA, foto insiden) disimpan sebagai base64 data URL di body JSON,
+  // jadi limit default 100kb body-parser tidak cukup.
+  app.use(json({ limit: '15mb' }));
+  app.use(urlencoded({ extended: true, limit: '15mb' }));
 
   // CORS
   app.enableCors({

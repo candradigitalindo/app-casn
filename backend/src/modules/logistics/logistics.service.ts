@@ -4,6 +4,21 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { InventoryCategory } from '@prisma/client';
+
+function categoryFromItemName(name: string): InventoryCategory {
+  const n = name.toLowerCase();
+  if (n.includes('laptop')) return 'LAPTOP_CLIENT';
+  if (n.includes('server')) return 'SERVER';
+  if (n.includes('ups')) return 'UPS';
+  if (n.includes('jaringan') || n.includes('switch') || n.includes('router') || n.includes('bandwidth') || n.includes('internet') || n.includes('lan')) return 'NETWORK';
+  if (n.includes('metal detector')) return 'METAL_DETECTOR';
+  if (n.includes('cctv')) return 'CCTV';
+  if (n.includes('tenda')) return 'TENTA';
+  if (n.includes('ac ') || n.startsWith('ac') || n.includes('air conditioner')) return 'AC';
+  if (n.includes('genset') || n.includes('generator')) return 'GENERATOR';
+  return 'OTHER';
+}
 import {
   CreateShipmentDto,
   UpdateShipmentDto,
@@ -141,7 +156,37 @@ export class LogisticsService {
   // ──────────────────────────────────────────────────────────
 
   async findInventoryItems() {
-    return this.prisma.inventoryItem.findMany({ orderBy: { name: 'asc' } });
+    // Auto-seed dari MasterItem (38 item standar BKN, Lampiran 2) saat
+    // pertama diakses — pola yang sama dengan auto-seed stages.
+    const count = await this.prisma.inventoryItem.count();
+    if (count === 0) {
+      const masters = await this.prisma.masterItem.findMany({
+        where: { isActive: true },
+        orderBy: { no: 'asc' },
+      });
+      if (masters.length > 0) {
+        await this.prisma.inventoryItem.createMany({
+          data: masters.map((m) => ({
+            code: `ITM-${String(m.no).padStart(2, '0')}`,
+            name: m.name,
+            category: categoryFromItemName(m.name),
+            standardQty: m.qty100,
+            // Kuantitas standar per tier kapasitas — dipakai frontend untuk
+            // menampilkan jumlah seharusnya sesuai kapasitas lokasi tujuan.
+            specifications: {
+              unit: m.unit,
+              qty100: m.qty100,
+              qty200: m.qty200,
+              qty300: m.qty300,
+              qty400: m.qty400,
+              qty500: m.qty500,
+            },
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    return this.prisma.inventoryItem.findMany({ orderBy: { code: 'asc' } });
   }
 
   async createInventoryItem(dto: CreateInventoryItemDto) {

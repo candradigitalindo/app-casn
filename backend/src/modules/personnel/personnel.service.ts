@@ -59,10 +59,24 @@ export class PersonnelService {
         date,
         present: dto.present,
         notes: dto.notes,
+        fileUrl: dto.fileUrl,
+        fileName: dto.fileName,
       },
-      update: { present: dto.present, notes: dto.notes },
+      update: {
+        present: dto.present,
+        notes: dto.notes,
+        fileUrl: dto.fileUrl,
+        fileName: dto.fileName,
+      },
     });
     return ok(data, 'Kehadiran disimpan');
+  }
+
+  async deleteAttendance(id: string) {
+    const att = await this.prisma.personnelAttendance.findUnique({ where: { id } });
+    if (!att) throw new NotFoundException('Catatan kehadiran tidak ditemukan');
+    await this.prisma.personnelAttendance.delete({ where: { id } });
+    return ok(null, 'Catatan kehadiran dihapus');
   }
 
   // Kebutuhan tenaga teknis per tier kapasitas (BAB 4 atribut 2.3
@@ -86,12 +100,32 @@ export class PersonnelService {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const [total, presentToday] = await Promise.all([
+    const [total, presentToday, locations, presentByLocation] = await Promise.all([
       this.prisma.personnel.count(),
       this.prisma.personnelAttendance.count({
         where: { date: today, present: true },
       }),
+      this.prisma.location.findMany({
+        select: { id: true, name: true, _count: { select: { personnel: true } } },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.personnelAttendance.groupBy({
+        by: ['locationId'],
+        where: { date: today, present: true },
+        _count: { _all: true },
+      }),
     ]);
-    return ok({ total, presentToday });
+
+    const presentMap = new Map(presentByLocation.map((p) => [p.locationId, p._count._all]));
+    const byLocation = locations
+      .filter((l) => l._count.personnel > 0)
+      .map((l) => ({
+        locationId: l.id,
+        locationName: l.name,
+        total: l._count.personnel,
+        present: presentMap.get(l.id) ?? 0,
+      }));
+
+    return ok({ total, presentToday, byLocation });
   }
 }

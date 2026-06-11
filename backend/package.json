@@ -4,7 +4,9 @@
   "description": "Sistem Pengelolaan Pelaksanaan Seleksi CASN - API Backend",
   "scripts": {
     "build": "nest build",
+    "build:monolith": "pnpm --dir ../frontend build && nest build",
     "start": "node dist/main",
+    "start:prod": "NODE_ENV=production node dist/main",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "lint": "eslint 'src/**/*.ts' --fix",
@@ -24,6 +26,7 @@
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.4.15",
     "@nestjs/platform-socket.io": "^11.1.26",
+    "@nestjs/serve-static": "^4.0.2",
     "@nestjs/swagger": "^7.4.2",
     "@nestjs/throttler": "^6.4.0",
     "@nestjs/websockets": "^11.1.26",

@@ -34,6 +34,11 @@ export class PersonnelController {
     return this.service.upsertAttendance(dto);
   }
 
+  @Delete('attendance/:id')
+  deleteAttendance(@Param('id') id: string) {
+    return this.service.deleteAttendance(id);
+  }
+
   @Post()
   create(@Body() dto: CreatePersonnelDto) {
     return this.service.create(dto);
