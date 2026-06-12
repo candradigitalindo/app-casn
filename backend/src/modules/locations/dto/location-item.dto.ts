@@ -1,5 +1,5 @@
 import { IsEnum, IsInt, IsOptional, IsString, Min, Max } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { ItemOwnership, ItemCondition } from '@prisma/client';
 
@@ -42,7 +42,8 @@ export class CreateLocationItemDto {
   notes?: string;
 }
 
-export class UpdateLocationItemDto extends CreateLocationItemDto {}
+// PartialType: PATCH boleh parsial (mis. hanya installationPct atau condition)
+export class UpdateLocationItemDto extends PartialType(CreateLocationItemDto) {}
 
 export class UpdateCapacityDto {
   @ApiProperty({ example: 200 })

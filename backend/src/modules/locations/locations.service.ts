@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { LocationStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { syncLocationStatusFromStages } from '../../common/utils/location-status.util';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
 import { QueryLocationDto } from './dto/query-location.dto';
@@ -231,9 +232,11 @@ export class LocationsService {
 
   async createItem(locationId: string, dto: CreateLocationItemDto) {
     await this.findOne(locationId);
-    return this.prisma.locationItem.create({
+    const created = await this.prisma.locationItem.create({
       data: { ...dto, locationId },
     });
+    await this.syncInstallationStageFromItems(locationId);
+    return created;
   }
 
   async updateItem(locationId: string, itemId: string, dto: UpdateLocationItemDto) {
@@ -241,7 +244,9 @@ export class LocationsService {
       where: { id: itemId, locationId },
     });
     if (!item) throw new NotFoundException('Item tidak ditemukan');
-    return this.prisma.locationItem.update({ where: { id: itemId }, data: dto });
+    const updated = await this.prisma.locationItem.update({ where: { id: itemId }, data: dto });
+    await this.syncInstallationStageFromItems(locationId);
+    return updated;
   }
 
   async deleteItem(locationId: string, itemId: string) {
@@ -250,6 +255,41 @@ export class LocationsService {
     });
     if (!item) throw new NotFoundException('Item tidak ditemukan');
     await this.prisma.locationItem.delete({ where: { id: itemId } });
+    await this.syncInstallationStageFromItems(locationId);
+  }
+
+  // Fase INSTALASI tahapan pekerjaan mengikuti rata-rata persentase
+  // instalasi barang di lokasi — sumber yang sama dengan halaman Instalasi.
+  private async syncInstallationStageFromItems(locationId: string) {
+    const items = await this.prisma.locationItem.findMany({
+      where: { locationId },
+      select: { installationPct: true },
+    });
+    const avg = items.length
+      ? Math.round(items.reduce((s, i) => s + i.installationPct, 0) / items.length)
+      : 0;
+    const allComplete = items.length > 0 && items.every((i) => i.installationPct >= 100);
+    const status = allComplete ? 'COMPLETED' : avg > 0 ? 'IN_PROGRESS' : 'NOT_STARTED';
+
+    await this.prisma.locationStage.upsert({
+      where: { locationId_phase: { locationId, phase: 'INSTALASI' } },
+      create: {
+        locationId,
+        phase: 'INSTALASI',
+        status,
+        progress: Math.min(avg, 100),
+        ...(status !== 'NOT_STARTED' ? { startedAt: new Date() } : {}),
+        ...(allComplete ? { completedAt: new Date() } : {}),
+      },
+      update: {
+        status,
+        progress: Math.min(avg, 100),
+        ...(status === 'IN_PROGRESS' ? { completedAt: null } : {}),
+        ...(allComplete ? { completedAt: new Date() } : {}),
+      },
+    });
+
+    await syncLocationStatusFromStages(this.prisma, locationId);
   }
 
   async updateCapacity(id: string, dto: UpdateCapacityDto) {
@@ -335,7 +375,9 @@ export class LocationsService {
     });
     if (!loc) throw new NotFoundException('Lokasi tidak ditemukan');
 
-    return this.syncItemsFromMaster(locationId, loc.capacity);
+    const results = await this.syncItemsFromMaster(locationId, loc.capacity);
+    await this.syncInstallationStageFromItems(locationId);
+    return results;
   }
 
   // Master item standar (untuk halaman referensi/admin)

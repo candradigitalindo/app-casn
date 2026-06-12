@@ -12,14 +12,14 @@ async function main() {
   const PASSWORD = 'andalan123';
 
   const users = [
-    { email: 'admin@andalan.go.id',     name: 'Super Admin',            role: UserRole.SUPER_ADMIN,         instansi: 'BKN Pusat' },
-    { email: 'logistik@andalan.go.id',  name: 'Tim Logistik',           role: UserRole.LOGISTICS,           instansi: 'Andalan Teknologi' },
-    { email: 'korlok@andalan.go.id',    name: 'Koordinator Lokasi',     role: UserRole.COORDINATOR,         instansi: 'Andalan Teknologi' },
-    { email: 'it@andalan.go.id',        name: 'Tenaga Teknis IT',       role: UserRole.TECHNICAL_IT,        instansi: 'Andalan Teknologi' },
-    { email: 'listrik@andalan.go.id',   name: 'Teknisi Elektrikal',     role: UserRole.TECHNICAL_ELECTRICAL,instansi: 'Andalan Teknologi' },
-    { email: 'sarpras@andalan.go.id',   name: 'Teknisi Sarpras',        role: UserRole.TECHNICAL_SARPRAS,   instansi: 'Andalan Teknologi' },
-    { email: 'registrasi@andalan.go.id',name: 'Petugas Registrasi',     role: UserRole.REGISTRAR,           instansi: 'BKN Daerah' },
-    { email: 'pengawas@andalan.go.id',  name: 'Pengawas',               role: UserRole.SUPERVISOR,          instansi: 'BKN Daerah' },
+    { email: 'admin@nbp.co.id',     name: 'Super Admin',            role: UserRole.SUPER_ADMIN,         instansi: 'BKN Pusat' },
+    { email: 'logistik@nbp.co.id',  name: 'Tim Logistik',           role: UserRole.LOGISTICS,           instansi: 'Andalan Teknologi' },
+    { email: 'korlok@nbp.co.id',    name: 'Koordinator Lokasi',     role: UserRole.COORDINATOR,         instansi: 'Andalan Teknologi' },
+    { email: 'it@nbp.co.id',        name: 'Tenaga Teknis IT',       role: UserRole.TECHNICAL_IT,        instansi: 'Andalan Teknologi' },
+    { email: 'listrik@nbp.co.id',   name: 'Teknisi Elektrikal',     role: UserRole.TECHNICAL_ELECTRICAL,instansi: 'Andalan Teknologi' },
+    { email: 'sarpras@nbp.co.id',   name: 'Teknisi Sarpras',        role: UserRole.TECHNICAL_SARPRAS,   instansi: 'Andalan Teknologi' },
+    { email: 'registrasi@nbp.co.id',name: 'Petugas Registrasi',     role: UserRole.REGISTRAR,           instansi: 'BKN Daerah' },
+    { email: 'pengawas@nbp.co.id',  name: 'Pengawas',               role: UserRole.SUPERVISOR,          instansi: 'BKN Daerah' },
   ];
 
   for (const u of users) {
@@ -37,7 +37,7 @@ async function main() {
   console.log(`✅ ${users.length} user dibuat (password: ${PASSWORD})`);
 
   // ── Lokasi demo (sinkron dengan frontend mock-data.ts) ─────────────────────
-  const koordinator = await prisma.user.findUnique({ where: { email: 'korlok@andalan.go.id' } });
+  const koordinator = await prisma.user.findUnique({ where: { email: 'korlok@nbp.co.id' } });
 
   const locations = [
     { code: 'JKT-001', name: 'Universitas Indonesia - Depok', province: 'DKI Jakarta', city: 'Jakarta Selatan', address: 'Jl. Margonda Raya, Depok', latitude: -6.3608, longitude: 106.8272, status: 'READY', capacity: 500 },

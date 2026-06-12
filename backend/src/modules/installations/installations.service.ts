@@ -125,21 +125,23 @@ export class InstallationsService {
   }
 
   async getSummary() {
+    // Akumulasi dihitung dari persentase instalasi barang di lokasi
+    // (LocationItem.installationPct) — sumber yang sama dengan halaman Instalasi.
     const locations = await this.prisma.location.findMany({
       select: {
         id: true,
         name: true,
         province: true,
         status: true,
-        installationProgress: true,
+        locationItems: { select: { installationPct: true } },
       },
     });
 
     const summary = locations.map((loc) => {
-      const milestones = loc.installationProgress;
-      const completed = milestones.filter((m) => m.percentage >= 100).length;
-      const avgPct = milestones.length
-        ? Math.round(milestones.reduce((s, m) => s + m.percentage, 0) / milestones.length)
+      const items = loc.locationItems;
+      const completed = items.filter((i) => i.installationPct >= 100).length;
+      const avgPct = items.length
+        ? Math.round(items.reduce((s, i) => s + i.installationPct, 0) / items.length)
         : 0;
 
       return {
@@ -148,7 +150,7 @@ export class InstallationsService {
         province: loc.province,
         status: loc.status,
         completedMilestones: completed,
-        totalMilestones: MILESTONE_ORDER.length,
+        totalMilestones: items.length,
         averagePercentage: avgPct,
       };
     });
