@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -51,21 +50,22 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="w-full max-w-md shadow-2xl">
-      <CardHeader className="space-y-1 pb-4">
-        <div className="flex items-center gap-3 mb-2">
-          <Logo className="h-12 w-12 text-primary shrink-0" />
-          <div>
-            <CardTitle className="text-lg font-bold leading-tight tracking-tight uppercase">SIPP Seleksi</CardTitle>
-            <p className="text-[11px] font-medium text-muted-foreground leading-snug">
-              Sistem Aplikasi Pengelolaan dan Pengendalian Pelaksanaan Seleksi di Seluruh Titik Lokasi Tes secara Online
-            </p>
+    <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+      {/* ── Card login ── */}
+      <div className="bg-white p-7 sm:p-10">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="mb-4 flex items-center gap-3">
+            <Logo className="h-10 w-10 shrink-0 text-primary" />
+            <div>
+              <p className="text-base font-bold uppercase leading-tight tracking-tight">SIPP Seleksi</p>
+              <p className="text-[11px] font-medium text-muted-foreground">Sistem Aplikasi Pengelolaan dan Pengendalian Pelaksanaan Seleksi di Seluruh Titik Lokasi</p>
+            </div>
           </div>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">Masuk ke akun Anda</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Gunakan kredensial yang telah diberikan.</p>
         </div>
-        <p className="text-sm font-medium text-foreground">Masuk ke akun Anda</p>
-      </CardHeader>
 
-      <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -105,7 +105,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
               {error}
             </p>
           )}
@@ -117,17 +117,17 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6">
-          <p className="text-xs text-muted-foreground font-medium mb-2">Akun demo (password: andalan123)</p>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Akun demo (password: andalan123)</p>
           <div className="flex flex-wrap gap-2">
             {DEMO_ACCOUNTS.map((acc) => (
               <button
                 key={acc.email}
                 type="button"
                 onClick={() => setEmail(acc.email)}
-                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                className={`rounded border px-2 py-1 text-[10px] transition-colors ${
                   email === acc.email
-                    ? "bg-primary/10 border-primary/30 text-primary font-medium"
-                    : "bg-muted border-muted hover:border-border text-muted-foreground hover:text-foreground"
+                    ? "border-primary/30 bg-primary/10 font-medium text-primary"
+                    : "border-muted bg-muted text-muted-foreground hover:border-border hover:text-foreground"
                 }`}
               >
                 {acc.label}
@@ -135,7 +135,7 @@ export default function LoginPage() {
             ))}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

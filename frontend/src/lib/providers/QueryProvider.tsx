@@ -3,9 +3,16 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState, type ReactNode } from 'react';
+import { useWebSocket } from '@/lib/hooks/useWebSocket';
 
 interface ProvidersProps {
   children: ReactNode;
+}
+
+/** Membuka koneksi real-time app-wide (tanpa UI). Harus di dalam QueryClientProvider. */
+function WebSocketBridge() {
+  useWebSocket();
+  return null;
 }
 
 export function QueryProvider({ children }: ProvidersProps) {
@@ -35,6 +42,7 @@ export function QueryProvider({ children }: ProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <WebSocketBridge />
       {children}
       <ReactQueryDevtools
         initialIsOpen={false}

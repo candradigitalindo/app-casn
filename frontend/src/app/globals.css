@@ -86,3 +86,33 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+/* ── Animasi halaman login (peta jaringan seleksi online se-Indonesia) ── */
+@keyframes login-grid-drift {
+  from { background-position: 0 0; }
+  to { background-position: 40px 40px; }
+}
+@keyframes login-aurora {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.55; }
+  50% { transform: translate3d(3%, -2%, 0) scale(1.12); opacity: 0.8; }
+}
+@keyframes login-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes login-line-flow {
+  to { stroke-dashoffset: -260; }
+}
+@keyframes login-scan {
+  0% { transform: translateX(-120px); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateX(1020px); opacity: 0; }
+}
+@keyframes login-flicker {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-anim { animation: none !important; }
+}
