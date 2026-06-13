@@ -226,4 +226,53 @@ export class ReportsService {
 
     return ok({ data, total, page, limit, totalPages: Math.ceil(total / limit) });
   }
+
+  // Rekap berita acara: matriks lokasi × jenis BA dengan status approval —
+  // memenuhi spesifikasi "laporan hasil upload berita acara".
+  async getBeritaAcaraReport() {
+    const locations = await this.prisma.location.findMany({
+      select: {
+        id: true,
+        name: true,
+        province: true,
+        city: true,
+        beritaAcara: {
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            title: true,
+            date: true,
+            createdAt: true,
+            approvedAt: true,
+            approvedBy: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const data = locations.map((loc) => {
+      const byType: Record<string, { count: number; latestStatus: string | null }> = {};
+      for (const ba of loc.beritaAcara) {
+        if (!byType[ba.type]) byType[ba.type] = { count: 0, latestStatus: ba.status };
+        byType[ba.type].count += 1;
+      }
+      return {
+        locationId: loc.id,
+        locationName: loc.name,
+        province: loc.province,
+        city: loc.city,
+        totalBA: loc.beritaAcara.length,
+        pendingCount: loc.beritaAcara.filter((b) => b.status === 'PENDING_APPROVAL').length,
+        approvedCount: loc.beritaAcara.filter((b) => b.status === 'FINAL').length,
+        rejectedCount: loc.beritaAcara.filter((b) => b.status === 'REJECTED').length,
+        byType,
+        items: loc.beritaAcara,
+      };
+    });
+
+    return ok(data);
+  }
 }

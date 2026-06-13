@@ -132,6 +132,32 @@ export function useUpdateBeritaAcara() {
   });
 }
 
+export function useBeritaAcaraReport() {
+  return useQuery({
+    queryKey: [...beritaAcaraKeys.all, 'report'],
+    queryFn: () => beritaAcaraApi.report(),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useApproveBeritaAcara() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => beritaAcaraApi.approve(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: beritaAcaraKeys.all }),
+    onError: handleQueryError,
+  });
+}
+
+export function useRejectBeritaAcara() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string }) => beritaAcaraApi.reject(id, note),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: beritaAcaraKeys.all }),
+    onError: handleQueryError,
+  });
+}
+
 export function useDeleteBeritaAcara() {
   const queryClient = useQueryClient();
   return useMutation({

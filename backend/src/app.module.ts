@@ -22,6 +22,7 @@ import { PersonnelModule } from './modules/personnel/personnel.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EventsModule } from './modules/events/events.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 import { JobsModule } from './jobs/jobs.module';
 
 const FRONTEND_DIST =
@@ -37,22 +38,32 @@ const FRONTEND_DIST =
 
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
 
-    // Deployment monolith: sajikan hasil `next build` (static export) dari
-    // frontend/out. Hanya aktif di production — di dev frontend dilayani
-    // `next dev` di port 3000.
-    ...(process.env.NODE_ENV === 'production' && existsSync(FRONTEND_DIST)
-      ? [
-          ServeStaticModule.forRoot({
-            rootPath: FRONTEND_DIST,
-            exclude: ['/api/(.*)', '/api-docs/(.*)'],
-            serveStaticOptions: {
-              // Next.js di-export dengan trailingSlash: setiap route berupa
-              // folder/index.html, jadi /locations → 301 /locations/ → index.html.
-              extensions: ['html'],
+    // Satu registrasi ServeStaticModule untuk semua konten statis —
+    // forRoot ganda akan di-dedup NestJS sehingga salah satunya hilang.
+    ServeStaticModule.forRoot(
+      // File upload (foto/video/PDF) dari folder uploads/
+      {
+        rootPath: join(process.cwd(), 'uploads'),
+        serveRoot: '/uploads',
+        serveStaticOptions: { index: false },
+      },
+      // Deployment monolith: hasil `next build` (static export) dari
+      // frontend/out. Hanya aktif di production — di dev frontend
+      // dilayani `next dev` di port 3000.
+      ...(process.env.NODE_ENV === 'production' && existsSync(FRONTEND_DIST)
+        ? [
+            {
+              rootPath: FRONTEND_DIST,
+              exclude: ['/api/(.*)', '/api-docs/(.*)', '/uploads/(.*)'],
+              serveStaticOptions: {
+                // Next.js di-export dengan trailingSlash: setiap route berupa
+                // folder/index.html, jadi /locations → 301 /locations/ → index.html.
+                extensions: ['html'],
+              },
             },
-          }),
-        ]
-      : []),
+          ]
+        : []),
+    ),
 
     // BullMQ global connection (semua queue pakai ini jika tidak override)
     BullModule.forRootAsync({
@@ -91,6 +102,7 @@ const FRONTEND_DIST =
 
     // Phase 5
     ReportsModule,
+    UploadsModule,
     JobsModule,
   ],
   providers: [

@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   HardHat,
   FolderOpen,
+  FileText,
   UserCog,
   LogOut,
 } from "lucide-react";
@@ -19,14 +20,18 @@ import { useAuthStore } from "@/lib/stores/auth";
 import { UserRoleLabels, UserRole } from "@/types/enums";
 import { Logo } from "./Logo";
 
+// Role pengawasan BKN: dashboard, monitoring, dan laporan (hanya lihat)
+const BKN_ROLES = [UserRole.SUPERVISOR, UserRole.PIMPINAN, UserRole.PPK, UserRole.INSPEKTORAT];
+
 export const ALL_NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: null },
-  { href: "/locations", label: "Titik Lokasi", icon: MapPin, roles: [UserRole.SUPER_ADMIN, UserRole.COORDINATOR, UserRole.SUPERVISOR] },
-  { href: "/logistics", label: "Logistik", icon: Truck, roles: [UserRole.SUPER_ADMIN, UserRole.LOGISTICS, UserRole.COORDINATOR, UserRole.SUPERVISOR] },
-  { href: "/installations", label: "Instalasi", icon: Wrench, roles: [UserRole.SUPER_ADMIN, UserRole.COORDINATOR, UserRole.TECHNICAL_IT, UserRole.TECHNICAL_ELECTRICAL, UserRole.TECHNICAL_SARPRAS, UserRole.SUPERVISOR] },
+  { href: "/locations", label: "Titik Lokasi", icon: MapPin, roles: [UserRole.SUPER_ADMIN, UserRole.COORDINATOR, ...BKN_ROLES] },
+  { href: "/logistics", label: "Logistik", icon: Truck, roles: [UserRole.SUPER_ADMIN, UserRole.LOGISTICS, UserRole.COORDINATOR, ...BKN_ROLES] },
+  { href: "/installations", label: "Instalasi", icon: Wrench, roles: [UserRole.SUPER_ADMIN, UserRole.COORDINATOR, UserRole.TECHNICAL_IT, UserRole.TECHNICAL_ELECTRICAL, UserRole.TECHNICAL_SARPRAS, ...BKN_ROLES] },
   { href: "/incidents", label: "Insiden", icon: AlertTriangle, roles: null },
-  { href: "/attendance", label: "Tenaga Teknis", icon: HardHat, roles: [UserRole.SUPER_ADMIN, UserRole.COORDINATOR, UserRole.REGISTRAR, UserRole.SUPERVISOR] },
-  { href: "/documents", label: "Dokumen", icon: FolderOpen, roles: [UserRole.SUPER_ADMIN, UserRole.LOGISTICS, UserRole.COORDINATOR, UserRole.SUPERVISOR] },
+  { href: "/attendance", label: "Tenaga Teknis", icon: HardHat, roles: [UserRole.SUPER_ADMIN, UserRole.COORDINATOR, UserRole.REGISTRAR, ...BKN_ROLES] },
+  { href: "/documents", label: "Dokumen", icon: FolderOpen, roles: [UserRole.SUPER_ADMIN, UserRole.LOGISTICS, UserRole.COORDINATOR, ...BKN_ROLES] },
+  { href: "/reports", label: "Laporan", icon: FileText, roles: [UserRole.SUPER_ADMIN, ...BKN_ROLES] },
   { href: "/users", label: "Pengguna", icon: UserCog, roles: [UserRole.SUPER_ADMIN] },
 ];
 

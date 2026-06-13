@@ -15,7 +15,10 @@ export class BeritaAcaraService {
     const data = await this.prisma.beritaAcara.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { location: { select: { name: true, city: true } } },
+      include: {
+        location: { select: { name: true, city: true } },
+        approvedBy: { select: { id: true, name: true } },
+      },
     });
     return ok(data);
   }
@@ -42,8 +45,8 @@ export class BeritaAcaraService {
         body: dto.body ?? '',
         fileUrl: dto.fileUrl,
         fileName: dto.fileName,
-        // File yang di-upload adalah dokumen final bertanda tangan.
-        status: dto.fileUrl ? 'FINAL' : 'DRAFT',
+        // Alur approval: BA yang di-upload menunggu persetujuan pengawas lapangan.
+        status: dto.fileUrl ? 'PENDING_APPROVAL' : 'DRAFT',
         transportMode: dto.transportMode,
         deliveryType: dto.deliveryType,
         courierName: dto.courierName,
@@ -76,5 +79,39 @@ export class BeritaAcaraService {
 
     await this.prisma.beritaAcara.delete({ where: { id } });
     return ok(null, 'Berita acara dihapus');
+  }
+
+  async approve(id: string, approverId: string) {
+    const ba = await this.prisma.beritaAcara.findUnique({ where: { id } });
+    if (!ba) throw new NotFoundException('Berita acara tidak ditemukan');
+
+    const updated = await this.prisma.beritaAcara.update({
+      where: { id },
+      data: {
+        status: 'FINAL',
+        approvedById: approverId,
+        approvedAt: new Date(),
+        rejectionNote: null,
+      },
+      include: { approvedBy: { select: { id: true, name: true } } },
+    });
+    return ok(updated, 'Berita acara disetujui');
+  }
+
+  async reject(id: string, approverId: string, note: string) {
+    const ba = await this.prisma.beritaAcara.findUnique({ where: { id } });
+    if (!ba) throw new NotFoundException('Berita acara tidak ditemukan');
+
+    const updated = await this.prisma.beritaAcara.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        approvedById: approverId,
+        approvedAt: new Date(),
+        rejectionNote: note,
+      },
+      include: { approvedBy: { select: { id: true, name: true } } },
+    });
+    return ok(updated, 'Berita acara ditolak');
   }
 }

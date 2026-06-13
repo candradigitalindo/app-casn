@@ -19,6 +19,9 @@ enum UserRole {
   TECHNICAL_SARPRAS
   REGISTRAR
   SUPERVISOR
+  PIMPINAN
+  PPK
+  INSPEKTORAT
 }
 
 enum LocationStatus {
@@ -99,14 +102,18 @@ enum StageStatus {
 enum BeritaAcaraType {
   BA_PENGANTARAN
   BA_UJI_FUNGSI
+  BA_PERUBAHAN_VOLUME
   BA_HARIAN
+  BA_KENDALA
   BA_DEINSTALASI
   BA_SERAH_TERIMA
 }
 
 enum BeritaAcaraStatus {
   DRAFT
+  PENDING_APPROVAL
   FINAL
+  REJECTED
 }
 
 enum TransportMode {
@@ -137,6 +144,7 @@ enum PersonnelRole {
   TENAGA_IT
   ELEKTRIKAL
   TENAGA_SARPRAS
+  PENGAWAS_BKN
 }
 
 enum DocumentCategory {
@@ -174,6 +182,7 @@ model User {
   createdShipments      LogisticsShipment[]
   attendanceScans       AttendanceLog[]     @relation("Scanner")
   createdBeritaAcara    BeritaAcara[]
+  approvedBeritaAcara   BeritaAcara[]       @relation("BeritaAcaraApprover")
   uploadedDocuments     LocationDocument[]
   completedStages       LocationStage[]
   coordinatedLocations  Location[]          @relation("LocationCoordinator")
@@ -442,6 +451,12 @@ model BeritaAcara {
   body           String
   fileUrl        String?
   fileName       String?
+
+  // Alur approval: koordinator upload -> pengawas lapangan menyetujui/menolak
+  approvedById  String?
+  approvedBy    User?     @relation("BeritaAcaraApprover", fields: [approvedById], references: [id])
+  approvedAt    DateTime?
+  rejectionNote String?
 
   // Khusus BA Pengantaran
   transportMode  TransportMode?

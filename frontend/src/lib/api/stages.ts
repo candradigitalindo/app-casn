@@ -17,6 +17,28 @@ export interface UpdateStageDto {
   notes?: string;
 }
 
+export interface BeritaAcaraReportRow {
+  locationId: string;
+  locationName: string;
+  province: string;
+  city: string;
+  totalBA: number;
+  pendingCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  byType: Record<string, { count: number; latestStatus: string | null }>;
+  items: Array<{
+    id: string;
+    type: BeritaAcaraType;
+    status: string;
+    title: string;
+    date: string;
+    createdAt: string;
+    approvedAt?: string | null;
+    approvedBy?: { name: string } | null;
+  }>;
+}
+
 // BA berupa upload file yang sudah ditandatangani — field komposisi
 // dokumen (body, pihak, items) tidak lagi dikirim dari form.
 export interface CreateBeritaAcaraDto {
@@ -69,6 +91,16 @@ export const beritaAcaraApi = {
 
   delete: (id: string): Promise<ApiResponse<void>> =>
     apiClient.delete(`/api/v1/berita-acara/${id}`),
+
+  // Rekap BA per lokasi (laporan hasil upload berita acara)
+  report: (): Promise<ApiResponse<BeritaAcaraReportRow[]>> =>
+    apiClient.get('/api/v1/reports/berita-acara'),
+
+  approve: (id: string): Promise<ApiResponse<BeritaAcara>> =>
+    apiClient.patch(`/api/v1/berita-acara/${id}/approve`, {}),
+
+  reject: (id: string, note: string): Promise<ApiResponse<BeritaAcara>> =>
+    apiClient.patch(`/api/v1/berita-acara/${id}/reject`, { note }),
 };
 
 export const locationItemsApi = {

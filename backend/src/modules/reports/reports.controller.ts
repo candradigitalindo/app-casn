@@ -40,6 +40,11 @@ export class ReportsController {
     return this.service.getInstallationsReport();
   }
 
+  @Get('berita-acara')
+  getBeritaAcaraReport() {
+    return this.service.getBeritaAcaraReport();
+  }
+
   @ApiQuery({ name: 'entityType', required: false })
   @ApiQuery({ name: 'userId', required: false })
   @ApiQuery({ name: 'page', required: false })

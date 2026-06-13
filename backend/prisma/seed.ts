@@ -20,6 +20,9 @@ async function main() {
     { email: 'sarpras@nbp.co.id',   name: 'Teknisi Sarpras',        role: UserRole.TECHNICAL_SARPRAS,   instansi: 'Andalan Teknologi' },
     { email: 'registrasi@nbp.co.id',name: 'Petugas Registrasi',     role: UserRole.REGISTRAR,           instansi: 'BKN Daerah' },
     { email: 'pengawas@nbp.co.id',  name: 'Pengawas',               role: UserRole.SUPERVISOR,          instansi: 'BKN Daerah' },
+    { email: 'pimpinan@nbp.co.id',  name: 'Pimpinan BKN',           role: UserRole.PIMPINAN,            instansi: 'BKN Pusat' },
+    { email: 'ppk@nbp.co.id',       name: 'PPK',                    role: UserRole.PPK,                 instansi: 'BKN Pusat' },
+    { email: 'inspektorat@nbp.co.id', name: 'Inspektorat',          role: UserRole.INSPEKTORAT,         instansi: 'BKN Pusat' },
   ];
 
   for (const u of users) {

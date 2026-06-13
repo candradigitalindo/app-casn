@@ -270,7 +270,7 @@ function LocationAttendanceCard({ location }: { location: Location }) {
   }
 
   const roleOrder: PersonnelRole[] = [
-    PersonnelRole.KOORDINATOR, PersonnelRole.TENAGA_IT,
+    PersonnelRole.PENGAWAS_BKN, PersonnelRole.KOORDINATOR, PersonnelRole.TENAGA_IT,
     PersonnelRole.ELEKTRIKAL, PersonnelRole.TENAGA_SARPRAS,
   ];
 

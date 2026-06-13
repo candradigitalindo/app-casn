@@ -31,6 +31,9 @@ const ROLE_COLORS: Record<UserRole, string> = {
   [UserRole.TECHNICAL_SARPRAS]:    "bg-teal-100 text-teal-700",
   [UserRole.REGISTRAR]:            "bg-pink-100 text-pink-700",
   [UserRole.SUPERVISOR]:           "bg-indigo-100 text-indigo-700",
+  [UserRole.PIMPINAN]:             "bg-slate-200 text-slate-800",
+  [UserRole.PPK]:                  "bg-lime-100 text-lime-700",
+  [UserRole.INSPEKTORAT]:          "bg-rose-100 text-rose-700",
 };
 
 const EMPTY_FORM: CreateUserDto = {
@@ -105,7 +108,10 @@ function UserDialog({
     [UserRole.TECHNICAL_ELECTRICAL]: "Tenaga teknis elektrikal, akses instalasi.",
     [UserRole.TECHNICAL_SARPRAS]: "Tenaga teknis sarana prasarana, akses instalasi.",
     [UserRole.REGISTRAR]: "Petugas registrasi peserta di titik lokasi.",
-    [UserRole.SUPERVISOR]: "Pengawas pelaksanaan, akses laporan dan monitoring.",
+    [UserRole.SUPERVISOR]: "Pengawas lapangan BKN — menyetujui/menolak berita acara, akses laporan dan monitoring.",
+    [UserRole.PIMPINAN]: "Pimpinan BKN — akses dashboard dan laporan (hanya lihat).",
+    [UserRole.PPK]: "Pejabat Pembuat Komitmen — akses dashboard dan laporan (hanya lihat).",
+    [UserRole.INSPEKTORAT]: "Inspektorat BKN — akses dashboard dan laporan untuk audit (hanya lihat).",
   };
 
   // Daftar lokasi untuk dropdown penugasan (admin tidak ter-scope)

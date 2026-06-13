@@ -50,6 +50,10 @@ export class UpdateBeritaAcaraDto {
   @ApiPropertyOptional() @IsOptional() @IsString() fileUrl?: string;
 }
 
+export class RejectBeritaAcaraDto {
+  @ApiProperty({ description: 'Alasan penolakan' }) @IsString() note: string;
+}
+
 export class BeritaAcaraQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() locationId?: string;
   @ApiPropertyOptional({ enum: BeritaAcaraType }) @IsOptional() @IsEnum(BeritaAcaraType) type?: BeritaAcaraType;

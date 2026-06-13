@@ -24,7 +24,7 @@ import {
 import {
   ArrowLeft, MapPin, Users, CheckCircle2, Circle, Loader2, Camera,
   FileText, Plus, Trash2, Pencil, PackagePlus, Play, CheckCheck, Eye,
-  ChevronLeft, ChevronRight, FileUp,
+  ChevronLeft, ChevronRight, FileUp, Download,
 } from "lucide-react";
 import {
   useLocation as useLocationDetail,
@@ -35,6 +35,8 @@ import {
   useBeritaAcaraList,
   useCreateBeritaAcara,
   useDeleteBeritaAcara,
+  useApproveBeritaAcara,
+  useRejectBeritaAcara,
   useLocationItems,
   useCreateLocationItem,
   useUpdateLocationItem,
@@ -44,6 +46,7 @@ import {
   usePermissions,
 } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth";
+import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import type { LocationStage, BeritaAcara, LocationItem } from "@/types/models";
 import {
@@ -51,10 +54,23 @@ import {
   StageStatus, StageStatusLabels,
   BeritaAcaraType, BeritaAcaraTypeLabels, StageBeritaAcaraTypes,
   ItemOwnership, ItemOwnershipLabels, ItemCondition, ItemConditionLabels,
-  LocationStatusLabels, UserRoleLabels, BeritaAcaraStatus,
+  LocationStatusLabels, UserRoleLabels, BeritaAcaraStatus, BeritaAcaraStatusLabels,
 } from "@/types/enums";
 
 const CAPACITY_OPTIONS = [25, 50, 75, 100, 150, 200, 250, 300];
+
+// Dokumentasi bisa berupa foto atau video (disimpan di /uploads server)
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|mov|webm|m4v|avi|mkv)$/i.test(url);
+}
+
+// Nama file unduhan dokumentasi: ekstensi dari URL upload atau MIME data URL
+function downloadName(p: { id: string; url: string }): string {
+  const ext = p.url.match(/\.(\w{2,4})(?:$|\?)/)?.[1]
+    ?? p.url.match(/^data:(?:image|video)\/(\w+)/)?.[1]
+    ?? "jpg";
+  return `dokumentasi-${p.id}.${ext}`;
+}
 const PHOTOS_PER_PAGE = 6;
 
 const statusColor: Record<StageStatus, string> = {
@@ -289,19 +305,38 @@ function StagePanel({
   const [notesDraft, setNotesDraft] = useState<string>(stage.notes ?? "");
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoCaption, setPhotoCaption] = useState("");
-  const [photoDataUrl, setPhotoDataUrl] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState("");
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [photoPage, setPhotoPage] = useState(0);
 
   function handlePhotoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Ukuran foto maksimal 10 MB");
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error("Ukuran file maksimal 100 MB");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setPhotoDataUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }
+
+  // Foto/video diunggah ke penyimpanan disk server (bukan base64 di database),
+  // lalu URL-nya dicatat sebagai dokumentasi tahap.
+  async function handleSavePhoto() {
+    if (!photoFile || !photoCaption) return;
+    setPhotoUploading(true);
+    try {
+      const res = await apiClient.uploadFile<{ url: string }>("/api/v1/uploads", photoFile);
+      addPhoto.mutate(
+        { id: stage.id, url: res.data.url, caption: photoCaption },
+        { onSuccess: () => { setPhotoOpen(false); setPhotoPage(0); } }
+      );
+    } catch {
+      toast.error("Gagal mengunggah file");
+    } finally {
+      setPhotoUploading(false);
+    }
   }
 
   const baTypes = StageBeritaAcaraTypes[stage.phase];
@@ -399,35 +434,51 @@ function StagePanel({
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base">Dokumentasi Foto</CardTitle>
-                <CardDescription className="text-xs">{photos.length} foto pada tahap ini</CardDescription>
+                <CardTitle className="text-base">Dokumentasi Foto &amp; Video</CardTitle>
+                <CardDescription className="text-xs">{photos.length} dokumentasi pada tahap ini</CardDescription>
               </div>
               {canWrite && (
-                <Button size="sm" variant="outline" onClick={() => { setPhotoCaption(""); setPhotoDataUrl(""); setPhotoOpen(true); }}>
-                  <Camera className="h-4 w-4 mr-1" /> Tambah Foto
+                <Button size="sm" variant="outline" onClick={() => { setPhotoCaption(""); setPhotoFile(null); setPhotoPreview(""); setPhotoOpen(true); }}>
+                  <Camera className="h-4 w-4 mr-1" /> Tambah
                 </Button>
               )}
             </div>
           </CardHeader>
           <CardContent>
             {photos.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Belum ada foto dokumentasi.</p>
+              <p className="text-sm text-muted-foreground text-center py-6">Belum ada dokumentasi.</p>
             ) : (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {visiblePhotos.map((p) => (
                     <figure key={p.id} className="space-y-1 group relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.url} alt={p.caption} className="rounded-lg border w-full aspect-[4/3] object-cover" />
-                      {canWrite && (
-                        <button
-                          onClick={() => deletePhoto.mutate({ stageId: stage.id, photoId: p.id })}
-                          disabled={deletePhoto.isPending}
-                          className="absolute top-1 right-1 h-6 w-6 rounded bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                      {isVideoUrl(p.url) ? (
+                        <video src={p.url} controls className="rounded-lg border w-full aspect-[4/3] object-cover bg-black" />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.url} alt={p.caption} className="rounded-lg border w-full aspect-[4/3] object-cover" />
                       )}
+                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Unduh — tersedia untuk semua role termasuk pengawasan BKN */}
+                        <a
+                          href={p.url}
+                          download={downloadName(p)}
+                          title="Unduh"
+                          className="h-6 w-6 rounded bg-black/60 text-white flex items-center justify-center hover:bg-primary"
+                        >
+                          <Download className="h-3 w-3" />
+                        </a>
+                        {canWrite && (
+                          <button
+                            onClick={() => deletePhoto.mutate({ stageId: stage.id, photoId: p.id })}
+                            disabled={deletePhoto.isPending}
+                            title="Hapus"
+                            className="h-6 w-6 rounded bg-black/60 text-white flex items-center justify-center hover:bg-red-600"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
                       <figcaption className="text-[11px] text-muted-foreground leading-tight">{p.caption}</figcaption>
                     </figure>
                   ))}
@@ -477,29 +528,32 @@ function StagePanel({
       <Dialog open={photoOpen} onOpenChange={setPhotoOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Tambah Foto Dokumentasi</DialogTitle>
+            <DialogTitle>Tambah Dokumentasi</DialogTitle>
             <DialogDescription>
-              Upload foto lapangan beserta keterangannya.
+              Upload foto atau video lapangan beserta keterangannya.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Foto *</Label>
+              <Label>Foto / Video *</Label>
               <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors">
-                {photoDataUrl ? (
+                {photoPreview && photoFile?.type.startsWith("video") ? (
+                  <video src={photoPreview} controls className="max-h-40 rounded-md" />
+                ) : photoPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photoDataUrl} alt="Preview" className="max-h-40 rounded-md object-contain" />
+                  <img src={photoPreview} alt="Preview" className="max-h-40 rounded-md object-contain" />
                 ) : (
                   <>
                     <Camera className="h-8 w-8 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Klik untuk pilih foto</span>
+                    <span className="text-sm text-muted-foreground">Klik untuk pilih foto atau video</span>
+                    <span className="text-[11px] text-muted-foreground/70">Maks. 100 MB</span>
                   </>
                 )}
-                <input type="file" accept="image/*" className="sr-only" onChange={handlePhotoFileChange} />
+                <input type="file" accept="image/*,video/*" className="sr-only" onChange={handlePhotoFileChange} />
               </label>
             </div>
             <div className="space-y-2">
-              <Label>Keterangan Foto *</Label>
+              <Label>Keterangan *</Label>
               <Input
                 value={photoCaption}
                 onChange={(e) => setPhotoCaption(e.target.value)}
@@ -510,11 +564,11 @@ function StagePanel({
           <DialogFooter>
             <Button variant="outline" onClick={() => setPhotoOpen(false)}>Batal</Button>
             <Button
-              disabled={!photoCaption || !photoDataUrl || addPhoto.isPending}
-              onClick={() => addPhoto.mutate({ id: stage.id, url: photoDataUrl, caption: photoCaption }, { onSuccess: () => { setPhotoOpen(false); setPhotoPage(0); } })}
+              disabled={!photoCaption || !photoFile || photoUploading || addPhoto.isPending}
+              onClick={handleSavePhoto}
             >
-              {addPhoto.isPending && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
-              Simpan Foto
+              {(photoUploading || addPhoto.isPending) && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+              {photoUploading ? "Mengunggah..." : "Simpan"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -526,6 +580,14 @@ function StagePanel({
 // ============================================================
 // SEKSI BERITA ACARA — upload file saja
 // ============================================================
+// Badge status BA mengikuti alur approval pengawas lapangan
+const BA_STATUS_STYLE: Record<BeritaAcaraStatus, string> = {
+  [BeritaAcaraStatus.DRAFT]: "text-slate-600 bg-slate-50 border-slate-200",
+  [BeritaAcaraStatus.PENDING_APPROVAL]: "text-amber-700 bg-amber-50 border-amber-300",
+  [BeritaAcaraStatus.FINAL]: "text-emerald-700 bg-emerald-50 border-emerald-300",
+  [BeritaAcaraStatus.REJECTED]: "text-red-700 bg-red-50 border-red-300",
+};
+
 function BeritaAcaraSection({
   locationId, locationName, baTypes, list, canWrite,
 }: {
@@ -537,6 +599,9 @@ function BeritaAcaraSection({
 }) {
   const createBA = useCreateBeritaAcara();
   const deleteBA = useDeleteBeritaAcara();
+  const approveBA = useApproveBeritaAcara();
+  const rejectBA = useRejectBeritaAcara();
+  const { canApproveBA } = usePermissions();
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [preview, setPreview] = useState<BeritaAcara | null>(null);
@@ -545,6 +610,21 @@ function BeritaAcaraSection({
     if (!confirm(`Hapus "${ba.title}" beserta filenya?`)) return;
     deleteBA.mutate(ba.id, {
       onSuccess: () => toast.success("Berita acara dihapus"),
+    });
+  }
+
+  function handleApprove(ba: BeritaAcara) {
+    if (!confirm(`Setujui "${ba.title}"?`)) return;
+    approveBA.mutate(ba.id, {
+      onSuccess: () => toast.success("Berita acara disetujui"),
+    });
+  }
+
+  function handleReject(ba: BeritaAcara) {
+    const note = prompt(`Alasan penolakan "${ba.title}":`);
+    if (!note?.trim()) return;
+    rejectBA.mutate({ id: ba.id, note: note.trim() }, {
+      onSuccess: () => toast.success("Berita acara ditolak"),
     });
   }
 
@@ -637,12 +717,46 @@ function BeritaAcaraSection({
                         </span>
                       )}
                     </div>
+                    {/* Jejak approval */}
+                    {ba.status === BeritaAcaraStatus.FINAL && ba.approvedBy && (
+                      <p className="text-[10px] text-emerald-600 mt-0.5">
+                        Disetujui oleh {ba.approvedBy.name}
+                        {ba.approvedAt && ` · ${new Date(ba.approvedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}`}
+                      </p>
+                    )}
+                    {ba.status === BeritaAcaraStatus.REJECTED && (
+                      <p className="text-[10px] text-red-600 mt-0.5">
+                        Ditolak{ba.approvedBy ? ` oleh ${ba.approvedBy.name}` : ""}{ba.rejectionNote ? `: ${ba.rejectionNote}` : ""}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant={ba.status === BeritaAcaraStatus.FINAL ? "default" : "outline"} className="text-[10px]">
-                    {ba.status === BeritaAcaraStatus.FINAL ? "Final" : "Draft"}
+                  <Badge variant="outline" className={`text-[10px] ${BA_STATUS_STYLE[ba.status]}`}>
+                    {BeritaAcaraStatusLabels[ba.status]}
                   </Badge>
+                  {/* Approval pengawas lapangan */}
+                  {canApproveBA && ba.status === BeritaAcaraStatus.PENDING_APPROVAL && (
+                    <>
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        disabled={approveBA.isPending}
+                        onClick={() => handleApprove(ba)}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Setujui
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        disabled={rejectBA.isPending}
+                        onClick={() => handleReject(ba)}
+                      >
+                        Tolak
+                      </Button>
+                    </>
+                  )}
                   <Button size="sm" variant="outline" disabled={!ba.fileUrl} onClick={() => setPreview(ba)}>
                     <Eye className="h-3.5 w-3.5 mr-1" /> Lihat
                   </Button>

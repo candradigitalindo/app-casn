@@ -232,6 +232,10 @@ export interface BeritaAcara {
   body: string; // isi/uraian berita acara
   fileUrl?: string; // file fisik yang di-upload, base64 data URL (PDF/gambar)
   fileName?: string; // nama file asli saat di-upload
+  // Alur approval pengawas lapangan
+  approvedBy?: { id: string; name: string } | null;
+  approvedAt?: string | null;
+  rejectionNote?: string | null;
   // Khusus BA Pengantaran (surat jalan)
   transportMode?: TransportMode;
   deliveryType?: DeliveryType;

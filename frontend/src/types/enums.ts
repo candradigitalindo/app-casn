@@ -11,6 +11,9 @@ export enum UserRole {
   TECHNICAL_SARPRAS = 'TECHNICAL_SARPRAS',
   REGISTRAR = 'REGISTRAR',
   SUPERVISOR = 'SUPERVISOR',
+  PIMPINAN = 'PIMPINAN',
+  PPK = 'PPK',
+  INSPEKTORAT = 'INSPEKTORAT',
 }
 
 export enum LocationStatus {
@@ -91,14 +94,18 @@ export enum StageStatus {
 export enum BeritaAcaraType {
   BA_PENGANTARAN = 'BA_PENGANTARAN',
   BA_UJI_FUNGSI = 'BA_UJI_FUNGSI',
+  BA_PERUBAHAN_VOLUME = 'BA_PERUBAHAN_VOLUME',
   BA_HARIAN = 'BA_HARIAN',
+  BA_KENDALA = 'BA_KENDALA',
   BA_DEINSTALASI = 'BA_DEINSTALASI',
   BA_SERAH_TERIMA = 'BA_SERAH_TERIMA',
 }
 
 export enum BeritaAcaraStatus {
   DRAFT = 'DRAFT',
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
   FINAL = 'FINAL',
+  REJECTED = 'REJECTED',
 }
 
 export enum TransportMode {
@@ -136,7 +143,10 @@ export const UserRoleLabels: Record<UserRole, string> = {
   [UserRole.TECHNICAL_ELECTRICAL]: 'Tenaga Teknis Elektrikal',
   [UserRole.TECHNICAL_SARPRAS]: 'Tenaga Teknis Sarpras',
   [UserRole.REGISTRAR]: 'Petugas Registrasi',
-  [UserRole.SUPERVISOR]: 'Pengawas',
+  [UserRole.SUPERVISOR]: 'Pengawas Lapangan',
+  [UserRole.PIMPINAN]: 'Pimpinan BKN',
+  [UserRole.PPK]: 'PPK',
+  [UserRole.INSPEKTORAT]: 'Inspektorat',
 };
 
 export const LocationStatusLabels: Record<LocationStatus, string> = {
@@ -211,24 +221,30 @@ export const StageStatusLabels: Record<StageStatus, string> = {
 };
 
 export const BeritaAcaraTypeLabels: Record<BeritaAcaraType, string> = {
-  [BeritaAcaraType.BA_PENGANTARAN]: 'BA Pengantaran / Surat Jalan',
+  [BeritaAcaraType.BA_PENGANTARAN]: 'BA Penerimaan / Pengantaran',
   [BeritaAcaraType.BA_UJI_FUNGSI]: 'BA Uji Fungsi',
+  [BeritaAcaraType.BA_PERUBAHAN_VOLUME]: 'BA Perubahan Volume',
   [BeritaAcaraType.BA_HARIAN]: 'BA Harian Pelaksanaan',
-  [BeritaAcaraType.BA_DEINSTALASI]: 'BA Deinstalasi',
+  [BeritaAcaraType.BA_KENDALA]: 'BA Kendala',
+  [BeritaAcaraType.BA_DEINSTALASI]: 'BA Pembongkaran / Deinstalasi',
   [BeritaAcaraType.BA_SERAH_TERIMA]: 'BA Serah Terima Pekerjaan (BAST)',
 };
 
 export const BeritaAcaraTypeCodes: Record<BeritaAcaraType, string> = {
   [BeritaAcaraType.BA_PENGANTARAN]: 'BA-PGT',
   [BeritaAcaraType.BA_UJI_FUNGSI]: 'BA-UF',
+  [BeritaAcaraType.BA_PERUBAHAN_VOLUME]: 'BA-PV',
   [BeritaAcaraType.BA_HARIAN]: 'BA-HRN',
+  [BeritaAcaraType.BA_KENDALA]: 'BA-KDL',
   [BeritaAcaraType.BA_DEINSTALASI]: 'BA-DIN',
   [BeritaAcaraType.BA_SERAH_TERIMA]: 'BAST',
 };
 
 export const BeritaAcaraStatusLabels: Record<BeritaAcaraStatus, string> = {
   [BeritaAcaraStatus.DRAFT]: 'Draft',
-  [BeritaAcaraStatus.FINAL]: 'Final',
+  [BeritaAcaraStatus.PENDING_APPROVAL]: 'Menunggu Persetujuan',
+  [BeritaAcaraStatus.FINAL]: 'Disetujui',
+  [BeritaAcaraStatus.REJECTED]: 'Ditolak',
 };
 
 export const TransportModeLabels: Record<TransportMode, string> = {
@@ -257,9 +273,9 @@ export const ItemConditionLabels: Record<ItemCondition, string> = {
 // Pemetaan tahap → jenis BA yang berlaku pada tahap tersebut
 export const StageBeritaAcaraTypes: Record<StagePhase, BeritaAcaraType[]> = {
   [StagePhase.PERSIAPAN]: [BeritaAcaraType.BA_PENGANTARAN],
-  [StagePhase.INSTALASI]: [],
+  [StagePhase.INSTALASI]: [BeritaAcaraType.BA_PERUBAHAN_VOLUME],
   [StagePhase.UJI_FUNGSI]: [BeritaAcaraType.BA_UJI_FUNGSI],
-  [StagePhase.PELAKSANAAN]: [BeritaAcaraType.BA_HARIAN],
+  [StagePhase.PELAKSANAAN]: [BeritaAcaraType.BA_HARIAN, BeritaAcaraType.BA_KENDALA],
   [StagePhase.DEINSTALASI]: [BeritaAcaraType.BA_DEINSTALASI],
   [StagePhase.SERAH_TERIMA]: [BeritaAcaraType.BA_SERAH_TERIMA],
 };
@@ -281,6 +297,7 @@ export enum PersonnelRole {
   TENAGA_IT = 'TENAGA_IT',
   ELEKTRIKAL = 'ELEKTRIKAL',
   TENAGA_SARPRAS = 'TENAGA_SARPRAS',
+  PENGAWAS_BKN = 'PENGAWAS_BKN',
 }
 
 export const PersonnelRoleLabels: Record<PersonnelRole, string> = {
@@ -288,6 +305,7 @@ export const PersonnelRoleLabels: Record<PersonnelRole, string> = {
   [PersonnelRole.TENAGA_IT]: 'Tenaga IT',
   [PersonnelRole.ELEKTRIKAL]: 'Elektrikal',
   [PersonnelRole.TENAGA_SARPRAS]: 'Tenaga Sarpras',
+  [PersonnelRole.PENGAWAS_BKN]: 'Pengawas Lapangan BKN',
 };
 
 export const PersonnelRoleColors: Record<PersonnelRole, string> = {
@@ -295,15 +313,16 @@ export const PersonnelRoleColors: Record<PersonnelRole, string> = {
   [PersonnelRole.TENAGA_IT]: 'bg-blue-100 text-blue-700 border-blue-200',
   [PersonnelRole.ELEKTRIKAL]: 'bg-amber-100 text-amber-700 border-amber-200',
   [PersonnelRole.TENAGA_SARPRAS]: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  [PersonnelRole.PENGAWAS_BKN]: 'bg-rose-100 text-rose-700 border-rose-200',
 };
 
 // Kebutuhan SDM berdasarkan kapasitas (dari dokumen BKN)
 export const STAFF_REQUIREMENTS: Record<number, Record<PersonnelRole, number>> = {
-  100: { [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 1, [PersonnelRole.ELEKTRIKAL]: 1, [PersonnelRole.TENAGA_SARPRAS]: 1 },
-  200: { [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 2, [PersonnelRole.ELEKTRIKAL]: 2, [PersonnelRole.TENAGA_SARPRAS]: 1 },
-  300: { [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 3, [PersonnelRole.ELEKTRIKAL]: 3, [PersonnelRole.TENAGA_SARPRAS]: 2 },
-  400: { [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 4, [PersonnelRole.ELEKTRIKAL]: 4, [PersonnelRole.TENAGA_SARPRAS]: 3 },
-  500: { [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 5, [PersonnelRole.ELEKTRIKAL]: 5, [PersonnelRole.TENAGA_SARPRAS]: 3 },
+  100: { [PersonnelRole.PENGAWAS_BKN]: 1, [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 1, [PersonnelRole.ELEKTRIKAL]: 1, [PersonnelRole.TENAGA_SARPRAS]: 1 },
+  200: { [PersonnelRole.PENGAWAS_BKN]: 1, [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 2, [PersonnelRole.ELEKTRIKAL]: 2, [PersonnelRole.TENAGA_SARPRAS]: 1 },
+  300: { [PersonnelRole.PENGAWAS_BKN]: 1, [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 3, [PersonnelRole.ELEKTRIKAL]: 3, [PersonnelRole.TENAGA_SARPRAS]: 2 },
+  400: { [PersonnelRole.PENGAWAS_BKN]: 1, [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 4, [PersonnelRole.ELEKTRIKAL]: 4, [PersonnelRole.TENAGA_SARPRAS]: 3 },
+  500: { [PersonnelRole.PENGAWAS_BKN]: 1, [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 5, [PersonnelRole.ELEKTRIKAL]: 5, [PersonnelRole.TENAGA_SARPRAS]: 3 },
 };
 
 // ============================================
