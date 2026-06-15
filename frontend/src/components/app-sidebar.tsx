@@ -14,6 +14,7 @@ import {
   FileText,
   UserCog,
   LogOut,
+  BookOpen,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuthStore } from "@/lib/stores/auth";
@@ -33,6 +34,7 @@ export const ALL_NAV_ITEMS = [
   { href: "/documents", label: "Dokumen", icon: FolderOpen, roles: [UserRole.SUPER_ADMIN, UserRole.LOGISTICS, UserRole.COORDINATOR, ...BKN_ROLES] },
   { href: "/reports", label: "Laporan", icon: FileText, roles: [UserRole.SUPER_ADMIN, ...BKN_ROLES] },
   { href: "/users", label: "Pengguna", icon: UserCog, roles: [UserRole.SUPER_ADMIN] },
+  { href: "/panduan", label: "Panduan", icon: BookOpen, roles: null },
 ];
 
 export function AppSidebar() {

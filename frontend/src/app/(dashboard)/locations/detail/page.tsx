@@ -780,7 +780,7 @@ function BeritaAcaraSection({
 
       {/* Viewer file BA yang di-upload (PDF/gambar sebagai data URL) */}
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent centered className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-base">{preview?.title}</DialogTitle>
             <DialogDescription className="font-mono text-xs">

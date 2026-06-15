@@ -416,7 +416,7 @@ function CreateTicketDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl p-0 gap-0 border-none shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <DialogContent centered className="sm:max-w-5xl p-0 gap-0 border-none shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
 
         {/* ── Header band ── */}
         <DialogHeader className="p-4 bg-primary/5 border-b flex-row items-center justify-between space-y-0">

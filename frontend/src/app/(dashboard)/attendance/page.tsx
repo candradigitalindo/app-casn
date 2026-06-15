@@ -662,7 +662,7 @@ function LocationAttendanceCard({ location }: { location: Location }) {
 
       {/* Viewer bukti kehadiran (gambar inline, PDF via iframe) */}
       <Dialog open={!!proofView} onOpenChange={(v) => { if (!v) setProofView(null); }}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent centered className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-base">Bukti Kehadiran — {proofView?.name}</DialogTitle>
             <p className="text-xs text-muted-foreground font-mono">
