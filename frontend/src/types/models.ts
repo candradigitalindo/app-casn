@@ -366,3 +366,22 @@ export interface LocationDocument {
   createdAt: string;
   updatedAt: string;
 }
+
+// Entri terpadu yang ditampilkan di halaman Dokumen per lokasi: gabungan
+// dokumen formal (LocationDocument) dan dokumentasi tahapan (StagePhoto).
+export interface DocumentEntry {
+  id: string;
+  locationId: string;
+  source: "DOCUMENT" | "STAGE_PHOTO";
+  category: DocumentCategory | StagePhotoCategory;
+  name: string;
+  fileName: string;
+  fileUrl: string;
+  fileSizeKb?: number;
+  notes?: string;
+  uploadedBy?: { id: string; name: string } | string | null;
+  createdAt: string;
+  // Hanya untuk source === "STAGE_PHOTO"
+  stageId?: string;
+  phase?: StagePhase;
+}

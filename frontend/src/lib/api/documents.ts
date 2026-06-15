@@ -1,5 +1,5 @@
 import { apiClient, ApiResponse } from '../api-client';
-import type { LocationDocument } from '@/types/models';
+import type { LocationDocument, DocumentEntry } from '@/types/models';
 import type { DocumentCategory } from '@/types/enums';
 
 export interface CreateDocumentDto {
@@ -13,7 +13,8 @@ export interface CreateDocumentDto {
 }
 
 export const documentsApi = {
-  getByLocation: (locationId: string): Promise<ApiResponse<LocationDocument[]>> =>
+  // Mengembalikan gabungan dokumen formal + dokumentasi tahapan (StagePhoto) lokasi.
+  getByLocation: (locationId: string): Promise<ApiResponse<DocumentEntry[]>> =>
     apiClient.get('/api/v1/documents', { params: { locationId } }),
 
   create: (data: CreateDocumentDto): Promise<ApiResponse<LocationDocument>> =>

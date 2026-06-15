@@ -19,10 +19,30 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocations, useDocuments, useCreateDocument, useDeleteDocument, usePermissions } from "@/lib/hooks";
-import type { Location, LocationDocument } from "@/types/models";
+import type { Location, DocumentEntry } from "@/types/models";
 import {
   DocumentCategory, DocumentCategoryLabels, DocumentCategoryColors,
+  StagePhotoCategoryLabels, StagePhotoCategoryColors,
 } from "@/types/enums";
+
+// Label & warna badge sesuai sumber entri (dokumen formal vs dokumentasi tahapan).
+function categoryLabel(doc: DocumentEntry): string {
+  return doc.source === "STAGE_PHOTO"
+    ? StagePhotoCategoryLabels[doc.category as keyof typeof StagePhotoCategoryLabels] ?? "Dokumentasi"
+    : DocumentCategoryLabels[doc.category as keyof typeof DocumentCategoryLabels] ?? "Lainnya";
+}
+function categoryColor(doc: DocumentEntry): string {
+  const map = doc.source === "STAGE_PHOTO" ? StagePhotoCategoryColors : DocumentCategoryColors;
+  return (map as Record<string, string>)[doc.category] ?? "bg-muted text-muted-foreground";
+}
+
+// Pratinjau berdasarkan tipe file: data URL (dokumen base64) atau path /uploads (tahapan).
+function fileKind(url: string): "image" | "pdf" | "video" | "other" {
+  if (url.startsWith("data:image") || /\.(jpe?g|png|gif|webp|avif|bmp)$/i.test(url)) return "image";
+  if (url.startsWith("data:application/pdf") || /\.pdf$/i.test(url)) return "pdf";
+  if (url.startsWith("data:video") || /\.(mp4|webm|ogg|mov|m4v)$/i.test(url)) return "video";
+  return "other";
+}
 import { CreateDocumentDto } from "@/lib/api/documents";
 
 const EMPTY_FORM: Omit<CreateDocumentDto, "locationId" | "uploadedBy"> = {
@@ -178,11 +198,13 @@ function DocumentRow({
   onDelete,
   onView,
 }: {
-  doc: LocationDocument;
-  onDelete?: (doc: LocationDocument) => void;
-  onView: (doc: LocationDocument) => void;
+  doc: DocumentEntry;
+  onDelete?: (doc: DocumentEntry) => void;
+  onView: (doc: DocumentEntry) => void;
 }) {
-  const colorClass = DocumentCategoryColors[doc.category] ?? "bg-muted text-muted-foreground";
+  const colorClass = categoryColor(doc);
+  // Dokumentasi tahapan hanya bisa dihapus dari halaman detail lokasi.
+  const canDelete = onDelete && doc.source !== "STAGE_PHOTO";
 
   return (
     <div className="flex items-center gap-3 py-3 px-4 hover:bg-muted/30 transition-colors group">
@@ -193,8 +215,11 @@ function DocumentRow({
         <p className="text-sm font-medium leading-tight truncate">{doc.name}</p>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           <Badge className={`text-[10px] px-1.5 py-0 border-0 ${colorClass}`}>
-            {DocumentCategoryLabels[doc.category]}
+            {categoryLabel(doc)}
           </Badge>
+          {doc.source === "STAGE_PHOTO" && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0">Tahapan</Badge>
+          )}
           <span className="text-[11px] text-muted-foreground font-mono truncate">{doc.fileName}</span>
           {doc.fileSizeKb && (
             <span className="text-[11px] text-muted-foreground">
@@ -228,12 +253,12 @@ function DocumentRow({
             <Download className="h-3.5 w-3.5" />
           </Button>
         </a>
-        {onDelete && (
+        {canDelete && (
           <Button
             size="icon"
             variant="ghost"
             className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10"
-            onClick={() => onDelete(doc)}
+            onClick={() => onDelete!(doc)}
             title="Hapus"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -256,8 +281,8 @@ function LocationDocumentCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<LocationDocument | null>(null);
-  const [viewTarget, setViewTarget] = useState<LocationDocument | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentEntry | null>(null);
+  const [viewTarget, setViewTarget] = useState<DocumentEntry | null>(null);
 
   const { data, isLoading } = useDocuments(expanded ? location.id : "");
   const deleteMutation = useDeleteDocument(location.id);
@@ -381,18 +406,20 @@ function LocationDocumentCard({
             <DialogTitle className="text-base">{viewTarget?.name}</DialogTitle>
             <p className="text-xs text-muted-foreground font-mono">{viewTarget?.fileName}</p>
           </DialogHeader>
-          {viewTarget?.fileUrl?.startsWith("data:image") ? (
+          {viewTarget && fileKind(viewTarget.fileUrl) === "image" ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={viewTarget.fileUrl} alt={viewTarget.name} className="max-h-[70vh] w-full object-contain rounded-md border" />
-          ) : viewTarget?.fileUrl?.startsWith("data:application/pdf") ? (
+          ) : viewTarget && fileKind(viewTarget.fileUrl) === "pdf" ? (
             <iframe src={viewTarget.fileUrl} title={viewTarget.name} className="h-[70vh] w-full rounded-md border" />
+          ) : viewTarget && fileKind(viewTarget.fileUrl) === "video" ? (
+            <video src={viewTarget.fileUrl} controls className="max-h-[70vh] w-full rounded-md border bg-black" />
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
               Pratinjau tidak tersedia untuk jenis file ini — gunakan tombol Unduh.
             </p>
           )}
           <DialogFooter>
-            {viewTarget?.fileUrl?.startsWith("data:") && (
+            {viewTarget && (
               <a href={viewTarget.fileUrl} download={viewTarget.fileName}>
                 <Button variant="outline"><Download className="h-4 w-4 mr-1" /> Unduh</Button>
               </a>
