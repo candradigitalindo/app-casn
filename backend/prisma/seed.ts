@@ -42,21 +42,24 @@ async function main() {
   // ── Lokasi demo (sinkron dengan frontend mock-data.ts) ─────────────────────
   const koordinator = await prisma.user.findUnique({ where: { email: 'korlok@nbp.co.id' } });
 
+  // Kapasitas wajib mengikuti tier standar BKN: 100 / 200 / 300 / 400 / 500
+  // (peserta per sesi) agar pemetaan item & tenaga teknis tepat.
   const locations = [
     { code: 'JKT-001', name: 'Universitas Indonesia - Depok', province: 'DKI Jakarta', city: 'Jakarta Selatan', address: 'Jl. Margonda Raya, Depok', latitude: -6.3608, longitude: 106.8272, status: 'READY', capacity: 500 },
     { code: 'JBR-001', name: 'Universitas Padjadjaran - Bandung', province: 'Jawa Barat', city: 'Bandung', address: 'Jl. Raya Bandung-Sumedang KM 21', latitude: -6.9175, longitude: 107.7628, status: 'READY', capacity: 400 },
-    { code: 'JTN-001', name: 'Universitas Diponegoro - Semarang', province: 'Jawa Tengah', city: 'Semarang', address: 'Jl. Prof. Soedarto, Tembalang', latitude: -7.0455, longitude: 110.4259, status: 'INSTALLATION_IN_PROGRESS', capacity: 350 },
-    { code: 'JTM-001', name: 'Universitas Airlangga - Surabaya', province: 'Jawa Timur', city: 'Surabaya', address: 'Jl. Mulyorejo, Surabaya', latitude: -7.2702, longitude: 112.7753, status: 'READY', capacity: 450 },
+    { code: 'JTN-001', name: 'Universitas Diponegoro - Semarang', province: 'Jawa Tengah', city: 'Semarang', address: 'Jl. Prof. Soedarto, Tembalang', latitude: -7.0455, longitude: 110.4259, status: 'INSTALLATION_IN_PROGRESS', capacity: 300 },
+    { code: 'JTM-001', name: 'Universitas Airlangga - Surabaya', province: 'Jawa Timur', city: 'Surabaya', address: 'Jl. Mulyorejo, Surabaya', latitude: -7.2702, longitude: 112.7753, status: 'READY', capacity: 400 },
     { code: 'SMU-001', name: 'Universitas Sumatera Utara - Medan', province: 'Sumatera Utara', city: 'Medan', address: 'Jl. Dr. T. Mansur No. 9', latitude: 3.5612, longitude: 98.6532, status: 'READY', capacity: 300 },
-    { code: 'PPA-001', name: 'Universitas Cenderawasih - Jayapura', province: 'Papua', city: 'Jayapura', address: 'Jl. Abepura, Jayapura', latitude: -2.5916, longitude: 140.669, status: 'PREPARATION', capacity: 150 },
-    { code: 'BLL-001', name: 'Universitas Udayana - Denpasar', province: 'Bali', city: 'Denpasar', address: 'Jl. PB Sudirman, Denpasar', latitude: -8.65, longitude: 115.2167, status: 'READY', capacity: 280 },
+    { code: 'PPA-001', name: 'Universitas Cenderawasih - Jayapura', province: 'Papua', city: 'Jayapura', address: 'Jl. Abepura, Jayapura', latitude: -2.5916, longitude: 140.669, status: 'PREPARATION', capacity: 100 },
+    { code: 'BLL-001', name: 'Universitas Udayana - Denpasar', province: 'Bali', city: 'Denpasar', address: 'Jl. PB Sudirman, Denpasar', latitude: -8.65, longitude: 115.2167, status: 'READY', capacity: 200 },
     { code: 'KTM-001', name: 'Universitas Mulawarman - Samarinda', province: 'Kalimantan Timur', city: 'Samarinda', address: 'Jl. Kuaro, Samarinda', latitude: -0.4948, longitude: 117.1536, status: 'INSTALLATION_IN_PROGRESS', capacity: 200 },
   ] as const;
 
   for (const loc of locations) {
     await prisma.location.upsert({
       where: { code: loc.code },
-      update: {},
+      // Sinkronkan kapasitas & status saat re-seed agar data lama ikut diperbaiki
+      update: { capacity: loc.capacity, status: loc.status },
       create: {
         ...loc,
         coordinatorId: koordinator?.id,
@@ -121,6 +124,63 @@ async function main() {
     });
   }
   console.log(`✅ ${masterItems.length} master item standar dibuat (Lampiran 2 BKN)`);
+
+  // ── Assign item ke tiap lokasi sesuai tier kapasitasnya ────────────────────
+  //    Mirror logika LocationsService.syncItemsFromMaster: pilih kuantitas
+  //    qtyN sesuai tier (100/200/300/400/500), upsert berdasarkan nama item
+  //    sehingga idempoten saat seed diulang.
+  const tierForCapacity = (capacity: number): 100 | 200 | 300 | 400 | 500 => {
+    const tier = Math.ceil(Math.max(capacity, 1) / 100) * 100;
+    return Math.min(Math.max(tier, 100), 500) as 100 | 200 | 300 | 400 | 500;
+  };
+
+  const dbMasterItems = await prisma.masterItem.findMany({
+    where: { isActive: true },
+    orderBy: { no: 'asc' },
+  });
+
+  let assignedCount = 0;
+  for (const loc of locations) {
+    const dbLoc = await prisma.location.findUnique({
+      where: { code: loc.code },
+      select: { id: true, capacity: true },
+    });
+    if (!dbLoc) continue;
+
+    const tier = tierForCapacity(dbLoc.capacity);
+    const qtyField = `qty${tier}` as 'qty100' | 'qty200' | 'qty300' | 'qty400' | 'qty500';
+
+    const existing = await prisma.locationItem.findMany({
+      where: { locationId: dbLoc.id },
+      select: { id: true, name: true },
+    });
+    const byName = new Map(existing.map((i) => [i.name, i.id]));
+
+    for (const m of dbMasterItems) {
+      const qty = m[qtyField];
+      const existingId = byName.get(m.name);
+      if (existingId) {
+        await prisma.locationItem.update({
+          where: { id: existingId },
+          data: { qty, unit: m.unit, ownership: m.ownership },
+        });
+      } else {
+        await prisma.locationItem.create({
+          data: {
+            locationId: dbLoc.id,
+            name: m.name,
+            qty,
+            unit: m.unit,
+            ownership: m.ownership,
+            condition: 'BAIK',
+            installationPct: 0,
+          },
+        });
+      }
+      assignedCount++;
+    }
+  }
+  console.log(`✅ ${assignedCount} item lokasi di-assign sesuai kapasitas (${locations.length} lokasi)`);
 
   // ── Master data: kebutuhan tenaga teknis per kapasitas
   //    (BAB 4 atribut 2.3 Dok. Pengumuman BKN — angka persis dari dokumen)
