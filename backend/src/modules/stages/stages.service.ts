@@ -105,6 +105,7 @@ export class StagesService {
         stageId,
         url: dto.url,
         caption: dto.caption,
+        category: dto.category ?? 'UMUM',
         takenAt: new Date(dto.takenAt),
         uploadedBy: dto.uploadedBy ?? userId ?? 'system',
       },

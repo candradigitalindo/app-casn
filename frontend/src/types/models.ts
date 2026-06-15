@@ -9,6 +9,7 @@ import {
   InventoryCategory,
   StagePhase,
   StageStatus,
+  StagePhotoCategory,
   BeritaAcaraType,
   BeritaAcaraStatus,
   TransportMode,
@@ -193,6 +194,7 @@ export interface StagePhoto {
   id: string;
   url: string;
   caption: string;
+  category: StagePhotoCategory;
   takenAt: string;
   uploadedBy: string;
 }

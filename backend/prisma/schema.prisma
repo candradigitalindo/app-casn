@@ -99,6 +99,14 @@ enum StageStatus {
   COMPLETED
 }
 
+// Kategori dokumentasi foto/video pada tahapan (spesifikasi BKN:
+// "foto dan video barang" vs "foto dan video sesi ujian").
+enum StagePhotoCategory {
+  BARANG
+  SESI_UJIAN
+  UMUM
+}
+
 enum BeritaAcaraType {
   BA_PENGANTARAN
   BA_UJI_FUNGSI
@@ -422,11 +430,12 @@ model LocationStage {
 }
 
 model StagePhoto {
-  id          String        @id @default(uuid())
+  id          String             @id @default(uuid())
   stageId     String
-  stage       LocationStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  stage       LocationStage      @relation(fields: [stageId], references: [id], onDelete: Cascade)
   url         String
   caption     String
+  category    StagePhotoCategory @default(UMUM)
   takenAt     DateTime
   uploadedBy  String
 

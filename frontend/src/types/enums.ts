@@ -91,6 +91,13 @@ export enum StageStatus {
   COMPLETED = 'COMPLETED',
 }
 
+// Kategori dokumentasi foto/video (spesifikasi BKN: barang vs sesi ujian)
+export enum StagePhotoCategory {
+  BARANG = 'BARANG',
+  SESI_UJIAN = 'SESI_UJIAN',
+  UMUM = 'UMUM',
+}
+
 export enum BeritaAcaraType {
   BA_PENGANTARAN = 'BA_PENGANTARAN',
   BA_UJI_FUNGSI = 'BA_UJI_FUNGSI',
@@ -218,6 +225,18 @@ export const StageStatusLabels: Record<StageStatus, string> = {
   [StageStatus.NOT_STARTED]: 'Belum Dimulai',
   [StageStatus.IN_PROGRESS]: 'Sedang Berjalan',
   [StageStatus.COMPLETED]: 'Selesai',
+};
+
+export const StagePhotoCategoryLabels: Record<StagePhotoCategory, string> = {
+  [StagePhotoCategory.BARANG]: 'Dokumentasi Barang',
+  [StagePhotoCategory.SESI_UJIAN]: 'Dokumentasi Sesi Ujian',
+  [StagePhotoCategory.UMUM]: 'Umum',
+};
+
+export const StagePhotoCategoryColors: Record<StagePhotoCategory, string> = {
+  [StagePhotoCategory.BARANG]: 'bg-blue-100 text-blue-700 border-blue-200',
+  [StagePhotoCategory.SESI_UJIAN]: 'bg-violet-100 text-violet-700 border-violet-200',
+  [StagePhotoCategory.UMUM]: 'bg-gray-100 text-gray-600 border-gray-200',
 };
 
 export const BeritaAcaraTypeLabels: Record<BeritaAcaraType, string> = {

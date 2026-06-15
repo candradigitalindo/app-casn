@@ -10,7 +10,7 @@ import {
   CreateLocationItemDto,
 } from '@/lib/api/stages';
 import type { BeritaAcara, LocationItem } from '@/types/models';
-import type { BeritaAcaraType } from '@/types/enums';
+import type { BeritaAcaraType, StagePhotoCategory } from '@/types/enums';
 import { handleQueryError } from '@/lib/api-client';
 import { locationKeys } from './useLocations';
 
@@ -80,8 +80,8 @@ export function useUpdateStage(locationId: string) {
 export function useAddStagePhoto(locationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, url, caption }: { id: string; url: string; caption: string }) =>
-      stagesApi.addPhoto(id, { url, caption, takenAt: new Date().toISOString() }),
+    mutationFn: ({ id, url, caption, category }: { id: string; url: string; caption: string; category?: StagePhotoCategory }) =>
+      stagesApi.addPhoto(id, { url, caption, category, takenAt: new Date().toISOString() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: stageKeys.location(locationId) });
     },

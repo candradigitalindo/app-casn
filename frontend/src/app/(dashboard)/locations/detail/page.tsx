@@ -47,11 +47,13 @@ import {
 } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth";
 import { apiClient } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { LocationStage, BeritaAcara, LocationItem } from "@/types/models";
 import {
   StagePhase, StagePhaseOrder, StagePhaseLabels, StagePhaseDescriptions,
   StageStatus, StageStatusLabels,
+  StagePhotoCategory, StagePhotoCategoryLabels, StagePhotoCategoryColors,
   BeritaAcaraType, BeritaAcaraTypeLabels, StageBeritaAcaraTypes,
   ItemOwnership, ItemOwnershipLabels, ItemCondition, ItemConditionLabels,
   LocationStatusLabels, UserRoleLabels, BeritaAcaraStatus, BeritaAcaraStatusLabels,
@@ -301,14 +303,21 @@ function StagePanel({
   const addPhoto = useAddStagePhoto(locationId);
   const deletePhoto = useDeleteStagePhoto(locationId);
 
+  // Default kategori dokumentasi mengikuti tahapan: sesi ujian dominan saat
+  // Pelaksanaan, selebihnya dokumentasi barang. Tetap bisa diubah pengguna.
+  const defaultPhotoCategory =
+    stage.phase === StagePhase.PELAKSANAAN ? StagePhotoCategory.SESI_UJIAN : StagePhotoCategory.BARANG;
+
   const [progressDraft, setProgressDraft] = useState<number>(stage.progress);
   const [notesDraft, setNotesDraft] = useState<string>(stage.notes ?? "");
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoCaption, setPhotoCaption] = useState("");
+  const [photoCategory, setPhotoCategory] = useState<StagePhotoCategory>(defaultPhotoCategory);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoPage, setPhotoPage] = useState(0);
+  const [categoryFilter, setCategoryFilter] = useState<StagePhotoCategory | "ALL">("ALL");
 
   function handlePhotoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -329,7 +338,7 @@ function StagePanel({
     try {
       const res = await apiClient.uploadFile<{ url: string }>("/api/v1/uploads", photoFile);
       addPhoto.mutate(
-        { id: stage.id, url: res.data.url, caption: photoCaption },
+        { id: stage.id, url: res.data.url, caption: photoCaption, category: photoCategory },
         { onSuccess: () => { setPhotoOpen(false); setPhotoPage(0); } }
       );
     } catch {
@@ -344,8 +353,16 @@ function StagePanel({
   const isPersiapan = stage.phase === StagePhase.PERSIAPAN;
 
   const photos = stage.photos;
-  const totalPhotoPages = Math.ceil(photos.length / PHOTOS_PER_PAGE);
-  const visiblePhotos = photos.slice(photoPage * PHOTOS_PER_PAGE, (photoPage + 1) * PHOTOS_PER_PAGE);
+  // Kategori yang benar-benar ada pada tahap ini (untuk tab filter)
+  const presentCategories = Array.from(
+    new Set(photos.map((p) => p.category ?? StagePhotoCategory.UMUM))
+  ) as StagePhotoCategory[];
+  const filteredPhotos =
+    categoryFilter === "ALL"
+      ? photos
+      : photos.filter((p) => (p.category ?? StagePhotoCategory.UMUM) === categoryFilter);
+  const totalPhotoPages = Math.ceil(filteredPhotos.length / PHOTOS_PER_PAGE);
+  const visiblePhotos = filteredPhotos.slice(photoPage * PHOTOS_PER_PAGE, (photoPage + 1) * PHOTOS_PER_PAGE);
 
   function handleSaveProgress() {
     updateStage.mutate({ id: stage.id, data: { progress: progressDraft, notes: notesDraft || undefined } });
@@ -438,7 +455,7 @@ function StagePanel({
                 <CardDescription className="text-xs">{photos.length} dokumentasi pada tahap ini</CardDescription>
               </div>
               {canWrite && (
-                <Button size="sm" variant="outline" onClick={() => { setPhotoCaption(""); setPhotoFile(null); setPhotoPreview(""); setPhotoOpen(true); }}>
+                <Button size="sm" variant="outline" onClick={() => { setPhotoCaption(""); setPhotoCategory(defaultPhotoCategory); setPhotoFile(null); setPhotoPreview(""); setPhotoOpen(true); }}>
                   <Camera className="h-4 w-4 mr-1" /> Tambah
                 </Button>
               )}
@@ -449,6 +466,39 @@ function StagePanel({
               <p className="text-sm text-muted-foreground text-center py-6">Belum ada dokumentasi.</p>
             ) : (
               <>
+                {/* Filter kategori dokumentasi (barang / sesi ujian / umum) */}
+                {presentCategories.length > 1 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    <button
+                      onClick={() => { setCategoryFilter("ALL"); setPhotoPage(0); }}
+                      className={cn(
+                        "text-[11px] font-medium rounded-full px-3 py-1 border transition-colors",
+                        categoryFilter === "ALL"
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-white text-muted-foreground border-gray-200 hover:bg-gray-50"
+                      )}
+                    >
+                      Semua ({photos.length})
+                    </button>
+                    {presentCategories.map((cat) => {
+                      const count = photos.filter((p) => (p.category ?? StagePhotoCategory.UMUM) === cat).length;
+                      return (
+                        <button
+                          key={cat}
+                          onClick={() => { setCategoryFilter(cat); setPhotoPage(0); }}
+                          className={cn(
+                            "text-[11px] font-medium rounded-full px-3 py-1 border transition-colors",
+                            categoryFilter === cat
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-white text-muted-foreground border-gray-200 hover:bg-gray-50"
+                          )}
+                        >
+                          {StagePhotoCategoryLabels[cat]} ({count})
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {visiblePhotos.map((p) => (
                     <figure key={p.id} className="space-y-1 group relative">
@@ -479,6 +529,14 @@ function StagePanel({
                           </button>
                         )}
                       </div>
+                      <span
+                        className={cn(
+                          "absolute top-1 left-1 text-[9px] font-semibold rounded px-1.5 py-0.5 border",
+                          StagePhotoCategoryColors[p.category ?? StagePhotoCategory.UMUM]
+                        )}
+                      >
+                        {StagePhotoCategoryLabels[p.category ?? StagePhotoCategory.UMUM]}
+                      </span>
                       <figcaption className="text-[11px] text-muted-foreground leading-tight">{p.caption}</figcaption>
                     </figure>
                   ))}
@@ -493,7 +551,7 @@ function StagePanel({
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-xs text-muted-foreground">
-                      {photoPage + 1} / {totalPhotoPages} ({photos.length} foto)
+                      {photoPage + 1} / {totalPhotoPages} ({filteredPhotos.length} foto)
                     </span>
                     <Button
                       size="sm" variant="outline"
@@ -551,6 +609,22 @@ function StagePanel({
                 )}
                 <input type="file" accept="image/*,video/*" className="sr-only" onChange={handlePhotoFileChange} />
               </label>
+            </div>
+            <div className="space-y-2">
+              <Label>Kategori Dokumentasi *</Label>
+              <Select value={photoCategory} onValueChange={(v) => setPhotoCategory(v as StagePhotoCategory)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>{StagePhotoCategoryLabels[photoCategory]}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.values(StagePhotoCategory).map((c) => (
+                    <SelectItem key={c} value={c}>{StagePhotoCategoryLabels[c]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Pisahkan dokumentasi barang dan sesi ujian sesuai ketentuan BKN.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Keterangan *</Label>

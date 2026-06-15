@@ -1,6 +1,6 @@
 import { apiClient, ApiResponse } from '../api-client';
 import type { LocationStage, BeritaAcara, BeritaAcaraParty, LocationItem, StagePhoto } from '@/types/models';
-import type { StagePhase, StageStatus, BeritaAcaraType, TransportMode, DeliveryType, ItemOwnership, ItemCondition } from '@/types/enums';
+import type { StagePhase, StageStatus, StagePhotoCategory, BeritaAcaraType, TransportMode, DeliveryType, ItemOwnership, ItemCondition } from '@/types/enums';
 
 export interface StageSummary {
   locationId: string;
@@ -69,7 +69,7 @@ export const stagesApi = {
   update: (id: string, data: UpdateStageDto): Promise<ApiResponse<LocationStage>> =>
     apiClient.patch(`/api/v1/stages/${id}`, data),
 
-  addPhoto: (id: string, data: { url: string; caption: string; takenAt: string; uploadedBy?: string }): Promise<ApiResponse<LocationStage>> =>
+  addPhoto: (id: string, data: { url: string; caption: string; category?: StagePhotoCategory; takenAt: string; uploadedBy?: string }): Promise<ApiResponse<LocationStage>> =>
     apiClient.post(`/api/v1/stages/${id}/photos`, data),
 
   deletePhoto: (stageId: string, photoId: string): Promise<ApiResponse<LocationStage>> =>
