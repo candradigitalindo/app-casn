@@ -58,7 +58,7 @@ Endpoint publik `/api/v1/health/live` memeriksa proses dan `/api/v1/health/ready
 
 Migrasi `20261019230000_security_projects_operations` menambahkan tabel/kolom tanpa menghapus data bisnis. Token lama tidak mempunyai ID sesi, sehingga pengguna perlu login kembali satu kali setelah rilis.
 
-- 24 skenario unit/regresi backend, 18 skenario integrasi HTTP/WebSocket/PostgreSQL/Redis, serta 7 skenario frontend lulus: 49 skenario. Runner backend menghitung satu induk suite tambahan.
+- 25 skenario unit/regresi backend, 18 skenario integrasi HTTP/WebSocket/PostgreSQL/Redis, serta 7 skenario frontend lulus: 50 skenario. Runner backend menghitung satu induk suite tambahan.
 - Integrasi menguji rotasi dua tab, token replay, pemutusan socket, akses media, file palsu, cakupan lokasi, expiry, pembatasan login, halaman setelah baris 500, penggantian nama master, split vendor, kapasitas, HPS, versi/revisi, aktivasi paralel, notifikasi, dan diagnostik.
 - Semua 16 migrasi berhasil diterapkan pada database uji kosong. Migrasi baru juga berhasil pada salinan produksi: 11 pengguna, 1 lokasi, 38 barang dan 38 inventaris dipertahankan; seluruh 38 barang/inventaris terhubung ke master.
 - Backup produksi berhasil dipulihkan di container sementara; 15 berkas unggahan lolos pemeriksaan arsip.
@@ -66,3 +66,5 @@ Migrasi `20261019230000_security_projects_operations` menambahkan tabel/kolom ta
 - Build backend dan ekspor 30 halaman frontend berhasil. Lint frontend tidak memiliki error; warning yang tersisa berasal dari kode lama dan dependensi hook.
 
 Workflow CI menggunakan versi action yang diverifikasi dari sumber resmi [checkout](https://github.com/actions/checkout), [setup-node](https://github.com/actions/setup-node), dan [pnpm action-setup](https://github.com/pnpm/action-setup), dipatok ke SHA commit. CI memakai database `sipp_audit_test` dan Redis terpisah.
+
+GitHub Actions terpicu pada rilis ini, tetapi runner belum memulai pengujian karena akun GitHub terkunci akibat masalah billing. [Anotasi job rilis](https://github.com/candradigitalindo/app-casn/actions/runs/39341291046) mencatat hambatan tersebut. Seluruh pemeriksaan yang sama telah dijalankan di server lokal; eksekusi CI cloud memerlukan penyelesaian billing akun.

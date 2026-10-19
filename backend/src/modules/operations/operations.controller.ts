@@ -20,8 +20,9 @@ export class OperationsController {
     return { status: 'ok', version: process.env.APP_VERSION ?? 'development' };
   }
   @Public() @Get('ready') async ready() {
+    let timer: NodeJS.Timeout | undefined;
     try {
-      await Promise.all([
+      const checks = Promise.all([
         this.prisma.$queryRaw`SELECT 1`,
         this.queue
           .waitUntilReady()
@@ -29,9 +30,20 @@ export class OperationsController {
             (client as unknown as { ping(): Promise<string> }).ping(),
           ),
       ]);
+      await Promise.race([
+        checks,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Readiness timeout')),
+            3000,
+          );
+        }),
+      ]);
       return { status: 'ok' };
     } catch {
       throw new ServiceUnavailableException('Layanan pendukung belum siap');
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
   @Roles(UserRole.SUPER_ADMIN)

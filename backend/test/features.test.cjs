@@ -11,6 +11,19 @@ const {
 } = require('../src/modules/uploads/file-types');
 const { clientIp } = require('../src/common/utils/client-ip.util');
 
+test('readiness mengembalikan 503 saat koneksi Redis menggantung', async () => {
+  const {
+    OperationsController,
+  } = require('../src/modules/operations/operations.controller');
+  const controller = new OperationsController(
+    { $queryRaw: async () => [] },
+    { waitUntilReady: () => new Promise(() => {}) },
+  );
+  const started = Date.now();
+  await assert.rejects(controller.ready(), { status: 503 });
+  assert.ok(Date.now() - started < 4000);
+});
+
 test('biaya desimal membedakan harga harian/event dan pembulatan markup', () => {
   assert.equal(allocationCost(3, '0.10', 'PER_HARI', 5).toFixed(2), '1.50');
   assert.equal(allocationCost(3, '0.10', 'PER_EVENT', 5).toFixed(2), '0.30');
