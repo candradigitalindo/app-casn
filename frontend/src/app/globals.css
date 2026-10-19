@@ -118,6 +118,8 @@
 }
 
 @media print {
+  body { background: white !important; }
+  [data-sonner-toaster] { display: none !important; }
   aside, header, main > div:first-child { display: none !important; }
   main { padding-left: 0 !important; }
   table { break-inside: auto; }
