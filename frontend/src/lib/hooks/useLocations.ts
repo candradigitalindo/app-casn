@@ -16,11 +16,12 @@ export const locationKeys = {
 // Hooks
 // Pengguna yang terikat ke satu titik lokasi (user.locationId terisi)
 // hanya melihat data lokasinya sendiri di seluruh aplikasi.
-export function useLocations(query: LocationQuery = {}) {
+export function useLocations(query: LocationQuery = {}, enabled = true) {
   const scopedLocationId = useAuthStore((s) => s.user?.locationId);
   return useQuery({
     queryKey: [...locationKeys.lists(), query],
     queryFn: () => locationsApi.getLocations(query),
+    enabled,
     select: scopedLocationId
       ? (res) => ({ ...res, data: (res.data ?? []).filter((l) => l.id === scopedLocationId) })
       : undefined,

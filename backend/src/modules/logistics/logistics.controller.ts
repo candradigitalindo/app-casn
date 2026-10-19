@@ -9,6 +9,7 @@ import {
   CreateShipmentDto,
   UpdateShipmentDto,
   QueryShipmentDto,
+  LogisticsOverviewDto,
 } from './dto/shipment.dto';
 import {
   CreateInventoryItemDto,
@@ -24,6 +25,9 @@ import { ok } from '../../common/dto/api-response.dto';
 @Controller('v1/logistics')
 export class LogisticsController {
   constructor(private svc: LogisticsService) {}
+
+  @Get('overview')
+  overview(@Query() query: LogisticsOverviewDto) { return this.svc.overview(query); }
 
   // ── SHIPMENTS ──────────────────────────────────────────────
 

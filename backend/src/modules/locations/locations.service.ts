@@ -49,7 +49,7 @@ export class LocationsService {
   // ──────────────────────────────────────────────────────────
 
   async findAll(query: QueryLocationDto) {
-    const { page = 1, limit = 500, province, city, status, search, locationId } = query;
+    const { page = 1, limit = 20, province, city, status, search, locationId } = query;
     const skip = (page - 1) * limit;
 
     const where = {
@@ -69,7 +69,7 @@ export class LocationsService {
         : {}),
     };
 
-    const [data, total] = await Promise.all([
+    const [data, total, groups] = await Promise.all([
       this.prisma.location.findMany({
         where,
         select: LOCATION_SELECT,
@@ -78,9 +78,10 @@ export class LocationsService {
         orderBy: [{ province: 'asc' }, { name: 'asc' }],
       }),
       this.prisma.location.count({ where }),
+      this.prisma.location.groupBy({ by: ['status'], where: { ...where, status: undefined }, _count: true }),
     ]);
 
-    return paginate(data, total, page, limit);
+    return { ...paginate(data, total, page, limit), summary: { total: groups.reduce((n, row) => n + row._count, 0), byStatus: Object.fromEntries(groups.map((row) => [row.status, row._count])) } };
   }
 
   async findOne(id: string) {
@@ -143,10 +144,15 @@ export class LocationsService {
     await this.findOne(id);
     await this.prisma.$transaction(async (tx) => {
       await lockLocation(tx, id);
+      if (await tx.projectLocation.count({ where: { locationId: id, project: { status: { notIn: ['SELESAI', 'DIBATALKAN'] } } } })) {
+        throw new ConflictException('Lokasi masih terhubung ke proyek aktif. Selesaikan proyek sebelum menghapus lokasi.');
+      }
       // FK SetNull tidak boleh mengubah akun lokal menjadi akun cakupan global.
+      await tx.userSession.updateMany({ where: { user: { locationId: id }, revokedAt: null }, data: { revokedAt: new Date() } });
       await tx.user.updateMany({ where: { locationId: id }, data: { isActive: false } });
       await tx.location.delete({ where: { id } });
     });
+    this.events.disconnectLocation(id);
     this.events.emitLocationUpdated(id, null);
   }
 
@@ -232,6 +238,7 @@ export class LocationsService {
     await this.findOne(locationId);
     return this.prisma.locationItem.findMany({
       where: { locationId },
+      include: { supplyAllocations: { select: { id: true, qty: true, vendor: { select: { id: true, name: true, code: true } } } } },
       orderBy: { name: 'asc' },
     });
   }
@@ -306,7 +313,8 @@ export class LocationsService {
     return Math.min(Math.max(tier, 100), 500) as 100 | 200 | 300 | 400 | 500;
   }
 
-  // Upsert LocationItem dari master data: item yang sudah ada (match nama)
+  // Upsert LocationItem berdasarkan ID master; nama dipakai untuk migrasi barang lama.
+  // Item yang sudah terhubung
   // di-update kuantitasnya, yang belum ada dibuat. Item kustom dibiarkan.
   private async syncItemsFromMaster(locationId: string, capacity: number, prisma: Prisma.TransactionClient) {
     const tier = this.tierForCapacity(capacity);
@@ -319,20 +327,21 @@ export class LocationsService {
 
     const existing = await prisma.locationItem.findMany({
       where: { locationId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, masterItemId: true },
     });
-    const byName = new Map(existing.map((i) => [i.name, i.id]));
+    const byMaster = new Map(existing.filter((i) => i.masterItemId).map((i) => [i.masterItemId, i.id]));
+    const byName = new Map(existing.filter((i) => !i.masterItemId).map((i) => [i.name, i.id]));
 
     const results: Awaited<ReturnType<typeof prisma.locationItem.create>>[] = [];
     for (const m of masterItems) {
       const qty = m[qtyField];
-      const existingId = byName.get(m.name);
+      const existingId = byMaster.get(m.id) ?? byName.get(m.name);
 
       if (existingId) {
         results.push(
           await prisma.locationItem.update({
             where: { id: existingId },
-            data: { qty, unit: m.unit },
+            data: { qty, name: m.name, unit: m.unit, masterItemId: m.id },
           }),
         );
       } else {
@@ -340,6 +349,7 @@ export class LocationsService {
           await prisma.locationItem.create({
             data: {
               locationId,
+              masterItemId: m.id,
               name: m.name,
               qty,
               unit: m.unit,

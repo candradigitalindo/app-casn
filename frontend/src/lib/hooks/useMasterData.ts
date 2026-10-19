@@ -108,7 +108,11 @@ export function useCreateMasterItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: masterDataApi.createMasterItem,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: masterDataKeys.all }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: masterDataKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['shipments', 'inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
     onError: handleQueryError,
   });
 }
@@ -118,7 +122,11 @@ export function useUpdateMasterItem() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<MasterItemPayload> }) =>
       masterDataApi.updateMasterItem(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: masterDataKeys.all }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: masterDataKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['shipments', 'inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
     onError: handleQueryError,
   });
 }
@@ -127,7 +135,11 @@ export function useDeleteMasterItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => masterDataApi.deleteMasterItem(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: masterDataKeys.all }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: masterDataKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['shipments', 'inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
     onError: handleQueryError,
   });
 }

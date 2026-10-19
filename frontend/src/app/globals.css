@@ -116,3 +116,10 @@
 @media (prefers-reduced-motion: reduce) {
   .login-anim { animation: none !important; }
 }
+
+@media print {
+  aside, header, main > div:first-child { display: none !important; }
+  main { padding-left: 0 !important; }
+  table { break-inside: auto; }
+  tr { break-inside: avoid; }
+}

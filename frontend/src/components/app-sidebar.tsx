@@ -16,6 +16,9 @@ import {
   UserCog,
   LogOut,
   BookOpen,
+  Bell,
+  Settings,
+  Activity,
   CalendarCheck,
   Database,
   Handshake,
@@ -60,8 +63,9 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     roles: [UserRole.SUPER_ADMIN, UserRole.LOGISTICS],
     children: [
       {
-        label: "Master",
+        label: "Proyek & Pemasok",
         items: [
+          { href: "/projects", label: "Proyek & Penawaran" },
           { href: "/vendors", label: "Vendor Rekanan" },
           { href: "/price-comparison", label: "Perbandingan Harga" },
         ],
@@ -90,12 +94,15 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     ],
   },
   { href: "/users", label: "Pengguna", icon: UserCog, roles: [UserRole.SUPER_ADMIN] },
+  { href: "/notifications", label: "Notifikasi", icon: Bell, roles: null },
+  { href: "/account", label: "Akun & Sesi", icon: Settings, roles: null },
+  { href: "/operations", label: "Operasional Sistem", icon: Activity, roles: [UserRole.SUPER_ADMIN] },
   { href: "/panduan", label: "Panduan", icon: BookOpen, roles: null },
 ];
 
-export function filterNavByRole(role: UserRole | undefined): NavItem[] {
+export function filterNavByRole(role: UserRole | undefined, locationId?: string | null): NavItem[] {
   return ALL_NAV_ITEMS.filter(
-    (item) => item.roles === null || (role && item.roles.includes(role))
+    (item) => (item.roles === null || (role && item.roles.includes(role))) && !(locationId && item.label === "Pengadaan")
   );
 }
 
@@ -201,7 +208,7 @@ export function AppSidebar() {
   const router = useRouter();
   const { user } = useAuthStore();
 
-  const navItems = filterNavByRole(user?.role as UserRole | undefined);
+  const navItems = filterNavByRole(user?.role as UserRole | undefined, user?.locationId);
 
   async function handleLogout() {
     try {

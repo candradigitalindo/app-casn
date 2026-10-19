@@ -20,7 +20,7 @@ export function MobileHeader() {
   const userRole = user?.role as UserRole | undefined;
 
   // Menu sama persis dengan sidebar desktop (termasuk filter role & sub-menu)
-  const navItems = filterNavByRole(userRole);
+  const navItems = filterNavByRole(userRole, user?.locationId);
   const currentLabel = findActiveNavLabel(pathname, navItems);
 
   async function handleLogout() {

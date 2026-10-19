@@ -244,6 +244,8 @@ export interface LocationItem {
   name: string;
   qty: number;
   unit: string;
+  masterItemId?: string | null;
+  supplyAllocations?: { id: string; qty: number; vendor: { id: string; name: string; code: string } }[];
   ownership: ItemOwnership;
   condition: ItemCondition;
   installationPct: number;

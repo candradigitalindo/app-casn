@@ -99,3 +99,16 @@ test('logout tetap membersihkan sesi saat server tidak tersedia', async () => {
   await assert.rejects(logoutSession());
   assert.equal(useAuthStore.getState().isAuthenticated, false);
 });
+
+
+test('pemilih data mengambil halaman lanjutan setelah 500 baris', async () => {
+  const pages = [];
+  apiClient.client.defaults.adapter = async (config) => {
+    pages.push(config.params.page);
+    return response(config, { data: config.params.page === 1 ? Array.from({ length: 500 }, (_, id) => ({ id })) : [{ id: 500 }], meta: { total: 501, totalPages: 2 } });
+  };
+  const result = await apiClient.getAll('/api/v1/locations');
+  assert.equal(result.data.length, 501);
+  assert.equal(result.data[500].id, 500);
+  assert.deepEqual(pages, [1, 2]);
+});

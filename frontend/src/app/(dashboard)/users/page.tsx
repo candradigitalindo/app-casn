@@ -1,5 +1,6 @@
 "use client";
 
+import { ListPagination, useListPage, useDebouncedSearch } from "@/components/list-pagination";
 import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -309,29 +310,19 @@ export default function UsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
 
   const { isSuperAdmin } = usePermissions();
-  const { data, isLoading } = useUsers();
+  const debounced = useDebouncedSearch(search);
+  const [page, setPage] = useListPage(`${debounced}:${roleFilter}`);
+  const { data, isLoading } = useUsers({ page, limit: 20, search: debounced || undefined, role: roleFilter === 'ALL' ? undefined : roleFilter });
   const toggleActive = useToggleUserActive();
 
   const allUsers: User[] = data?.data ?? [];
 
-  const filtered = useMemo(() => {
-    let list = allUsers;
-    if (roleFilter !== "ALL") list = list.filter((u) => u.role === roleFilter);
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
-    }
-    return list;
-  }, [allUsers, roleFilter, search]);
+  const filtered = allUsers;
 
   function openCreate() { setEditUser(null); setDialogOpen(true); }
   function openEdit(u: User) { setEditUser(u); setDialogOpen(true); }
 
-  const totalByRole = useMemo(() => {
-    const map: Partial<Record<UserRole, number>> = {};
-    allUsers.forEach((u) => { map[u.role] = (map[u.role] ?? 0) + 1; });
-    return map;
-  }, [allUsers]);
+  const totalByRole = data?.summary?.byRole ?? {};
 
   // Manajemen pengguna khusus Super Admin — sidebar menyembunyikan link,
   // tapi halaman tetap bisa dibuka langsung via URL.
@@ -367,7 +358,7 @@ export default function UsersPage() {
           className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors font-medium ${roleFilter === "ALL" ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted border-border"}`}
         >
           <Users className="h-3 w-3" />
-          Semua ({allUsers.length})
+          Semua ({data?.summary?.total ?? 0})
         </button>
         {Object.values(UserRole).map((r) => {
           const count = totalByRole[r] ?? 0;
@@ -463,6 +454,7 @@ export default function UsersPage() {
         </div>
       )}
 
+      <ListPagination page={page} total={data?.meta?.total} totalPages={data?.meta?.totalPages} onPage={setPage} loading={isLoading} />
       <UserDialog
         open={dialogOpen}
         user={editUser}

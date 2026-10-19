@@ -2,8 +2,7 @@ import { IsOptional, IsInt, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-// Default & max limit dinaikkan karena seluruh halaman frontend menampilkan
-// daftar penuh (agregasi/statistik dihitung di klien) tanpa kontrol paginasi.
+// Daftar utama menggunakan paginasi; pemilih data meminta halaman lanjutan secara eksplisit.
 export class PaginationDto {
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
@@ -12,15 +11,15 @@ export class PaginationDto {
   @Min(1)
   page?: number = 1;
 
-  @ApiPropertyOptional({ default: 500 })
+  @ApiPropertyOptional({ default: 20 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(1000)
-  limit?: number = 500;
+  limit?: number = 20;
 
   get skip(): number {
-    return ((this.page ?? 1) - 1) * (this.limit ?? 500);
+    return ((this.page ?? 1) - 1) * (this.limit ?? 20);
   }
 }

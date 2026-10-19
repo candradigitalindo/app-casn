@@ -31,9 +31,7 @@ export interface TicketQuery {
 export const incidentsApi = {
   // Get all tickets with filtering
   getTickets: (query: TicketQuery = {}) =>
-    apiClient.get<IncidentTicket[]>('/api/v1/incidents/tickets', {
-      params: query,
-    }),
+    query.page ? apiClient.get<IncidentTicket[]>('/api/v1/incidents/tickets', { params: query }) : apiClient.getAll<IncidentTicket>('/api/v1/incidents/tickets', { ...query }),
 
   // Create new ticket
   createTicket: (data: CreateTicketDto) =>

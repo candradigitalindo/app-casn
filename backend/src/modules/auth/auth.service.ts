@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service';
 import { LoginDto } from './dto/login.dto';
-import { JwtPayload } from './strategies/jwt.strategy';
+import { SessionsService, SessionMetadata } from '../sessions/sessions.service';
 
 @Injectable()
 export class AuthService {
@@ -16,19 +16,22 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private config: ConfigService,
+    private sessions: SessionsService,
   ) {}
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, metadata: SessionMetadata = {}) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
 
     if (!user || !user.isActive) {
+      await this.recordLogin(dto.email, false, metadata, user?.id);
       throw new UnauthorizedException('Email atau password salah');
     }
 
     const passwordMatch = await bcrypt.compare(dto.password, user.password);
     if (!passwordMatch) {
+      await this.recordLogin(dto.email, false, metadata, user.id);
       throw new UnauthorizedException('Email atau password salah');
     }
 
@@ -37,25 +40,23 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    const tokens = await this.generateTokens(updatedUser.id, updatedUser.email, updatedUser.role);
+    await this.recordLogin(dto.email, true, metadata, user.id);
+    const tokens = await this.sessions.create(updatedUser, metadata);
 
     const { password: _, ...safeUser } = updatedUser;
 
     return { user: safeUser, tokens };
   }
 
-  async refresh(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { isActive: true, email: true, role: true },
-    });
+  async refresh(userId: string, sessionId: string, refreshToken: string) {
+    return { tokens: await this.sessions.refresh(userId, sessionId, refreshToken) };
+  }
 
-    if (!user?.isActive) {
-      throw new ForbiddenException('Akun tidak aktif');
-    }
-
-    const tokens = await this.generateTokens(userId, user.email, user.role);
-    return { tokens };
+  private recordLogin(email: string, success: boolean, metadata: SessionMetadata, userId?: string) {
+    return this.prisma.loginAttempt.create({ data: {
+      email: email.trim().toLowerCase().slice(0, 320), success, userId,
+      ipAddress: metadata.ipAddress?.slice(0, 100), userAgent: metadata.userAgent?.slice(0, 1000),
+    } });
   }
 
   async getMe(userId: string) {
@@ -78,28 +79,6 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('User tidak ditemukan');
     return user;
-  }
-
-  private async generateTokens(userId: string, email: string, role: string) {
-    const payload: JwtPayload = { sub: userId, email, role };
-
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: this.config.get<string>('jwt.secret'),
-        expiresIn: this.config.get<string>('jwt.expiresIn'),
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: this.config.get<string>('jwt.refreshSecret'),
-        expiresIn: this.config.get<string>('jwt.refreshExpiresIn'),
-      }),
-    ]);
-
-    const payloadTimes = this.jwtService.decode<{ exp: number; iat: number }>(accessToken);
-    return {
-      accessToken,
-      refreshToken,
-      expiresIn: payloadTimes.exp - payloadTimes.iat,
-    };
   }
 
   // Digunakan oleh prisma/seed.ts

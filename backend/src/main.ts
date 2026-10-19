@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, RequestMethod } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
@@ -15,7 +15,8 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   // Global prefix
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', { exclude: [{ path: 'uploads/(.*)', method: RequestMethod.ALL }] });
+  app.getHttpAdapter().getInstance().set('trust proxy', 2);
 
   // Cookie parser (untuk refresh token via httpOnly cookie)
   app.use(cookieParser());

@@ -28,10 +28,12 @@ export class IncidentsService {
         { title: { contains: search, mode: 'insensitive' } },
         { ticketNumber: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
+        { reporterName: { contains: search, mode: 'insensitive' } },
+        { location: { name: { contains: search, mode: 'insensitive' } } },
       ];
     }
 
-    const [data, total] = await Promise.all([
+    const [data, total, statuses, severities] = await Promise.all([
       this.prisma.incidentTicket.findMany({
         where,
         skip,
@@ -40,9 +42,11 @@ export class IncidentsService {
         include: { location: { select: { name: true, city: true } }, assignee: { select: { id: true, name: true } } },
       }),
       this.prisma.incidentTicket.count({ where }),
+      this.prisma.incidentTicket.groupBy({ by: ['status'], where: { ...where, status: undefined }, _count: true }),
+      this.prisma.incidentTicket.groupBy({ by: ['severity'], where: { ...where, status: undefined, severity: undefined }, _count: true }),
     ]);
 
-    return paginate(data, total, page ?? 1, limit ?? 20);
+    return { ...paginate(data, total, page ?? 1, limit ?? 20), summary: { total: statuses.reduce((n, row) => n + row._count, 0), byStatus: Object.fromEntries(statuses.map((row) => [row.status, row._count])), bySeverity: Object.fromEntries(severities.map((row) => [row.severity, row._count])) } };
   }
 
   async findOne(id: string) {

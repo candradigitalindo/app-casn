@@ -16,9 +16,7 @@ export interface LocationQuery {
 export const locationsApi = {
   // Get all locations with filtering
   getLocations: (query: LocationQuery = {}) =>
-    apiClient.get<Location[]>('/api/v1/locations', {
-      params: query,
-    }),
+    query.page ? apiClient.get<Location[]>('/api/v1/locations', { params: query }) : apiClient.getAll<Location>('/api/v1/locations', { ...query }),
 
   // Get location detail
   getLocation: (id: string) =>

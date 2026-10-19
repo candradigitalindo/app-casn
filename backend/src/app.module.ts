@@ -1,3 +1,7 @@
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { OperationsModule } from './modules/operations/operations.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -37,17 +41,11 @@ const FRONTEND_DIST =
       envFilePath: '.env',
     }),
 
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    ThrottlerModule.forRoot([{ name: 'login-account', ttl: 300000, limit: 10 }, { name: 'login-ip', ttl: 60000, limit: 100 }]),
 
     // Satu registrasi ServeStaticModule untuk semua konten statis —
     // forRoot ganda akan di-dedup NestJS sehingga salah satunya hilang.
     ServeStaticModule.forRoot(
-      // File upload (foto/video/PDF) dari folder uploads/
-      {
-        rootPath: join(process.cwd(), 'uploads'),
-        serveRoot: '/uploads',
-        serveStaticOptions: { index: false },
-      },
       // Deployment monolith: hasil `next build` (static export) dari
       // frontend/out. Hanya aktif di production — di dev frontend
       // dilayani `next dev` di port 3000.
@@ -77,7 +75,7 @@ const FRONTEND_DIST =
       inject: [ConfigService],
     }),
 
-    PrismaModule,
+    PrismaModule, SessionsModule,
 
     // WebSocket gateway — global, harus sebelum modul yang inject EventsGateway
     EventsModule,
@@ -105,7 +103,8 @@ const FRONTEND_DIST =
     UploadsModule,
     MasterDataModule,
     VendorsModule,
-    JobsModule,
+    ProjectsModule,
+    JobsModule, NotificationsModule, OperationsModule,
   ],
   providers: [
     // Audit trail otomatis untuk semua operasi tulis (POST/PUT/PATCH/DELETE)

@@ -1,0 +1,6 @@
+# UTC: backup 02.00 WIB, uji pemulihan Minggu 03.00 WIB, kesehatan tiap 5 menit.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+0 19 * * * root /usr/bin/python3 /home/daniswara/nusantara/app-casn/ops/operations.py backup >> /var/log/sipp-operations.log 2>&1
+0 20 * * 6 root /usr/bin/python3 /home/daniswara/nusantara/app-casn/ops/operations.py restore-check >> /var/log/sipp-operations.log 2>&1
+*/5 * * * * root /usr/bin/python3 /home/daniswara/nusantara/app-casn/ops/operations.py health >> /var/log/sipp-operations.log 2>&1

@@ -194,13 +194,19 @@ test('presensi hari yang sama tidak boleh berpindah lokasi diam-diam', async () 
 });
 
 test('refresh memakai role dan email terkini dari database', async () => {
-  const calls = [];
-  const jwt = { signAsync: async (payload) => { calls.push(payload); return 'token'; }, decode: () => ({ exp: 4000, iat: 400 }) };
-  const service = new AuthService({ user: { findUnique: async () => ({ isActive: true, email: 'new@example.test', role: 'COORDINATOR' }) } }, jwt, { get: () => 'test' });
-  const result = await service.refresh('u', 'old@example.test', 'SUPER_ADMIN');
-  assert.equal(calls[0].role, 'COORDINATOR');
-  assert.equal(calls[0].email, 'new@example.test');
-  assert.equal(result.tokens.expiresIn, 3600);
+  const { SessionsService } = require('../src/modules/sessions/sessions.service');
+  const { JwtService } = require('@nestjs/jwt');
+  const jwt = new JwtService();
+  const config = { get: (key) => ({ 'jwt.secret': 'test-access', 'jwt.refreshSecret': 'test-refresh', 'jwt.expiresIn': '1h', 'jwt.refreshExpiresIn': '7d' })[key] };
+  let session;
+  const user = { id: 'u', isActive: true, email: 'new@example.test', role: 'COORDINATOR' };
+  const prisma = { userSession: { create: async ({ data }) => (session = data), findUnique: async () => ({ ...session, user }), update: async ({ data }) => (session = { ...session, ...data }) }, $queryRaw: async () => [], $transaction: (fn) => fn(prisma) };
+  const sessions = new SessionsService(prisma, jwt, config);
+  const created = await sessions.create({ ...user, email: 'old@example.test', role: 'SUPER_ADMIN' });
+  const result = await sessions.refresh('u', session.id, created.refreshToken);
+  assert.equal(jwt.decode(result.accessToken).role, 'COORDINATOR');
+  assert.equal(jwt.decode(result.accessToken).email, 'new@example.test');
+  assert.equal(result.expiresIn, 3600);
 });
 
 test('scope lokasi menolak URL, query dan body lintas lokasi', async () => {

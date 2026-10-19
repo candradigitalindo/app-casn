@@ -1,3 +1,4 @@
+import { NotificationsService } from '../modules/notifications/notifications.service';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
@@ -13,6 +14,7 @@ export class SlaMonitorProcessor extends WorkerHost {
   constructor(
     private prisma: PrismaService,
     private events: EventsGateway,
+    private notifications: NotificationsService,
   ) {
     super();
   }
@@ -20,6 +22,7 @@ export class SlaMonitorProcessor extends WorkerHost {
   async process(job: Job) {
     if (job.name === 'check-overdue') {
       await this.checkOverdue();
+      await this.notifications.refresh();
     }
   }
 

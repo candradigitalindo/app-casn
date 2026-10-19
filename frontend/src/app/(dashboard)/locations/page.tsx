@@ -1,5 +1,6 @@
 "use client";
 
+import { ListPagination, useListPage, useDebouncedSearch } from "@/components/list-pagination";
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -74,10 +75,13 @@ export default function LocationsPage() {
   const [viewingLocation, setViewingLocation] = useState<Location | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
+  const debounced = useDebouncedSearch(search);
+  const [page, setPage] = useListPage(`${debounced}:${statusFilter}:${provinceFilter}`);
   const { data: response, isLoading } = useLocations({
+    page, limit: 20,
     ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
     ...(provinceFilter !== "ALL" ? { province: provinceFilter } : {}),
-    search: search || undefined,
+    search: debounced || undefined,
   });
 
   // Master data wilayah: dropdown provinsi & kabupaten/kota di form + filter
@@ -212,10 +216,10 @@ export default function LocationsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Total", count: locations.length, color: "text-foreground" },
-          { label: "Siap", count: locations.filter(l => l.status === LocationStatus.READY).length, color: "text-emerald-600" },
-          { label: "Instalasi", count: locations.filter(l => l.status === LocationStatus.INSTALLATION_IN_PROGRESS).length, color: "text-amber-600" },
-          { label: "Persiapan", count: locations.filter(l => l.status === LocationStatus.PREPARATION).length, color: "text-slate-600" },
+          { label: "Total", count: response?.summary?.total ?? 0, color: "text-foreground" },
+          { label: "Siap", count: response?.summary?.byStatus?.[LocationStatus.READY] ?? 0, color: "text-emerald-600" },
+          { label: "Instalasi", count: response?.summary?.byStatus?.[LocationStatus.INSTALLATION_IN_PROGRESS] ?? 0, color: "text-amber-600" },
+          { label: "Persiapan", count: response?.summary?.byStatus?.[LocationStatus.PREPARATION] ?? 0, color: "text-slate-600" },
         ].map((item) => (
           <Card key={item.label} className="py-3">
             <CardContent className="p-0 text-center">
@@ -353,6 +357,7 @@ export default function LocationsPage() {
         })}
       </div>}
 
+      <ListPagination page={page} total={response?.meta?.total} totalPages={response?.meta?.totalPages} onPage={setPage} loading={isLoading} />
       {!isLoading && filtered.length === 0 && (
         <div className="text-center py-12">
           <MapPin className="h-12 w-12 text-muted-foreground/50 mx-auto" />

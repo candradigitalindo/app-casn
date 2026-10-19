@@ -1,5 +1,6 @@
 "use client";
 
+import { ListPagination, useListPage, useDebouncedSearch } from "@/components/list-pagination";
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -636,9 +637,10 @@ export default function IncidentsPage() {
   const { canWrite } = usePermissions();
   const [form, setForm] = useState(EMPTY_FORM);
 
-  const { data: response, isLoading } = useTickets(
-    statusFilter !== "ALL" ? { status: statusFilter } : {}
-  );
+  const debounced = useDebouncedSearch(search);
+  const [page, setPage] = useListPage(`${debounced}:${statusFilter}:${sevFilter}`);
+  const { data: response, isLoading } = useTickets({ page, limit: 20, search: debounced || undefined,
+    status: statusFilter === 'ALL' ? undefined : statusFilter, severity: sevFilter === 'ALL' ? undefined : sevFilter });
   const { data: locResponse } = useLocations({});
   const createTicket = useCreateTicket();
   const deleteTicket = useDeleteTicket();
@@ -650,29 +652,8 @@ export default function IncidentsPage() {
     [locations]
   );
 
-  const filtered = useMemo(() => {
-    return tickets.filter((t) => {
-      if (sevFilter !== "ALL" && t.severity !== sevFilter) return false;
-      if (!search) return true;
-      const q = search.toLowerCase();
-      return (
-        t.title.toLowerCase().includes(q) ||
-        t.ticketNumber.toLowerCase().includes(q) ||
-        t.reporterName.toLowerCase().includes(q) ||
-        (locMap[t.locationId] ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [tickets, sevFilter, search, locMap]);
-
-  const counts = useMemo(() => {
-    const byStatus = Object.fromEntries(
-      STATUS_ORDER.map((s) => [s, tickets.filter((t) => t.status === s).length])
-    ) as Record<TicketStatus, number>;
-    const bySev = Object.fromEntries(
-      Object.values(TicketSeverity).map((s) => [s, tickets.filter((t) => t.severity === s).length])
-    ) as Record<TicketSeverity, number>;
-    return { byStatus, bySev };
-  }, [tickets]);
+  const filtered = tickets;
+  const counts = { byStatus: response?.summary?.byStatus ?? {}, bySev: response?.summary?.bySeverity ?? {} };
 
   function handleCreate() {
     if (!form.title || !form.description || !form.locationId) return;
@@ -760,7 +741,7 @@ export default function IncidentsPage() {
         >
           Semua
           <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-black/10 text-[10px] font-bold">
-            {tickets.length}
+            {response?.summary?.total ?? 0}
           </span>
         </button>
         {STATUS_ORDER.map((s) => {
@@ -838,6 +819,7 @@ export default function IncidentsPage() {
       />
 
       {/* Dialog Buat Tiket */}
+      <ListPagination page={page} total={response?.meta?.total} totalPages={response?.meta?.totalPages} onPage={setPage} loading={isLoading} />
       <CreateTicketDialog
         open={createOpen}
         onOpenChange={(v) => { setCreateOpen(v); if (!v) setForm(EMPTY_FORM); }}

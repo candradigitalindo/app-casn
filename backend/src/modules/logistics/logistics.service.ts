@@ -6,7 +6,7 @@ import {
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
-import { InventoryCategory } from '@prisma/client';
+import { InventoryCategory, Prisma, ShipmentStatus } from '@prisma/client';
 
 function categoryFromItemName(name: string): InventoryCategory {
   const n = name.toLowerCase();
@@ -25,6 +25,7 @@ import {
   CreateShipmentDto,
   UpdateShipmentDto,
   QueryShipmentDto,
+  LogisticsOverviewDto,
 } from './dto/shipment.dto';
 import {
   CreateInventoryItemDto,
@@ -55,6 +56,29 @@ const SHIPMENT_SELECT = {
 @Injectable()
 export class LogisticsService {
   constructor(private prisma: PrismaService, private events: EventsGateway) {}
+
+  async overview(query: LogisticsOverviewDto) {
+    const { page = 1, limit = 20, search, province, destinationLocationId, status } = query;
+    const base: Prisma.LocationWhereInput = {
+      ...(destinationLocationId ? { id: destinationLocationId } : {}),
+      ...(province ? { province } : {}),
+      ...(search ? { OR: ['name','code','city','province'].map((field) => ({ [field]: { contains: search, mode: 'insensitive' } })) } : {}),
+    };
+    const priority: ShipmentStatus[] = ['PACKING','IN_TRANSIT','ARRIVED','RECEIVED','RETURNED'];
+    const statusFilter = (value: string): Prisma.LocationWhereInput => value === 'NONE'
+      ? { shipments: { none: {} } }
+      : { shipments: { some: { status: value as ShipmentStatus }, none: { status: { in: priority.slice(0, priority.indexOf(value as ShipmentStatus)) } } } };
+    const where: Prisma.LocationWhereInput = { ...base, ...(status ? statusFilter(status) : {}) };
+    const keys = ['NONE', ...priority];
+    const [data, total, counts] = await Promise.all([
+      this.prisma.location.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: [{ province: 'asc' }, { name: 'asc' }],
+        include: { shipments: { orderBy: { createdAt: 'desc' }, include: { createdBy: { select: { id: true, name: true } } } } } }),
+      this.prisma.location.count({ where }),
+      Promise.all(keys.map((key) => this.prisma.location.count({ where: { ...base, ...statusFilter(key) } }))),
+    ]);
+    return { ...paginate(data, total, page, limit), summary: { byStatus: Object.fromEntries(keys.map((key, i) => [key, counts[i]])) } };
+  }
+
 
   // ──────────────────────────────────────────────────────────
   // SHIPMENTS
@@ -164,37 +188,27 @@ export class LogisticsService {
   // ──────────────────────────────────────────────────────────
 
   async findInventoryItems() {
-    // Auto-seed dari MasterItem (38 item standar instansi penyelenggara) saat
-    // pertama diakses — pola yang sama dengan auto-seed stages.
-    const count = await this.prisma.inventoryItem.count();
-    if (count === 0) {
-      const masters = await this.prisma.masterItem.findMany({
-        where: { isActive: true },
-        orderBy: { no: 'asc' },
-      });
-      if (masters.length > 0) {
-        await this.prisma.inventoryItem.createMany({
-          data: masters.map((m) => ({
-            code: `ITM-${String(m.no).padStart(2, '0')}`,
-            name: m.name,
-            category: categoryFromItemName(m.name),
-            standardQty: m.qty100,
-            // Kuantitas standar per tier kapasitas — dipakai frontend untuk
-            // menampilkan jumlah seharusnya sesuai kapasitas lokasi tujuan.
-            specifications: {
-              unit: m.unit,
-              qty100: m.qty100,
-              qty200: m.qty200,
-              qty300: m.qty300,
-              qty400: m.qty400,
-              qty500: m.qty500,
-            },
-          })),
-          skipDuplicates: true,
-        });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(1397313620)::text`;
+      const masters = await tx.masterItem.findMany({ where: { isActive: true }, orderBy: { no: 'asc' } });
+      const items = await tx.inventoryItem.findMany({ select: { id: true, masterItemId: true } });
+      const byMaster = new Map(items.filter((item) => item.masterItemId).map((item) => [item.masterItemId, item.id]));
+      const missing = masters.filter((master) => !byMaster.has(master.id));
+      if (missing.length) await tx.inventoryItem.createMany({ data: missing.map((m) => ({
+        masterItemId: m.id, code: `STD-${m.id}`, name: m.name, category: categoryFromItemName(m.name), standardQty: m.qty100,
+        specifications: { unit: m.unit, qty100: m.qty100, qty200: m.qty200, qty300: m.qty300, qty400: m.qty400, qty500: m.qty500 },
+      })), skipDuplicates: true });
+      for (const m of masters) {
+        const id = byMaster.get(m.id);
+        if (id) await tx.inventoryItem.update({ where: { id }, data: {
+          name: m.name, category: categoryFromItemName(m.name), standardQty: m.qty100,
+          specifications: { unit: m.unit, qty100: m.qty100, qty200: m.qty200, qty300: m.qty300, qty400: m.qty400, qty500: m.qty500 },
+        } });
       }
-    }
-    return this.prisma.inventoryItem.findMany({ orderBy: { code: 'asc' } });
+    });
+    return this.prisma.inventoryItem.findMany({
+      where: { OR: [{ masterItemId: null }, { masterItem: { isActive: true } }] }, orderBy: { code: 'asc' },
+    });
   }
 
   async createInventoryItem(dto: CreateInventoryItemDto) {

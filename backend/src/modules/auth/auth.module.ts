@@ -1,3 +1,5 @@
+import { SessionsModule } from '../sessions/sessions.module';
+import { LoginThrottleGuard } from './guards/login-throttle.guard';
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -12,13 +14,13 @@ import { LocationScopeGuard } from '../../common/guards/location-scope.guard';
 
 @Module({
   imports: [
-    PassportModule,
+    PassportModule, SessionsModule,
     // JwtModule terdaftar tanpa secret karena tiap signAsync pakai secret eksplisit
     JwtModule.register({}),
   ],
   controllers: [AuthController],
   providers: [
-    AuthService,
+    AuthService, LoginThrottleGuard,
     JwtStrategy,
     JwtRefreshStrategy,
     // Guard JWT aktif secara global — endpoint yang tidak butuh auth diberi @Public()

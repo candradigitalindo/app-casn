@@ -188,6 +188,12 @@ model User {
   locationId String?
   location   Location? @relation("UserWorkLocation", fields: [locationId], references: [id], onDelete: SetNull)
 
+  sessions UserSession[]
+  loginAttempts LoginAttempt[]
+  uploadedFiles UploadedFile[]
+  notifications Notification[]
+  projects Project[]
+
   // Relations
   auditLogs             AuditLog[]
   assignedTickets       IncidentTicket[]    @relation("AssignedTechnician")
@@ -227,6 +233,10 @@ model Location {
 
   coordinatorId String?
   coordinator   User?   @relation("LocationCoordinator", fields: [coordinatorId], references: [id])
+
+  uploadedFiles UploadedFile[]
+  notifications Notification[]
+  projectLocation ProjectLocation?
 
   // Relations
   users                User[]                @relation("UserWorkLocation")
@@ -312,6 +322,8 @@ model IncidentTicket {
 // ============================================================
 
 model InventoryItem {
+  masterItemId String? @unique
+  masterItem MasterItem? @relation(fields: [masterItemId], references: [id], onDelete: SetNull)
   id           String            @id @default(uuid())
   code         String            @unique
   name         String
@@ -476,6 +488,9 @@ model BeritaAcara {
 // ============================================================
 
 model LocationItem {
+  masterItemId String?
+  masterItem MasterItem? @relation(fields: [masterItemId], references: [id], onDelete: SetNull)
+  supplyAllocations LocationSupplyAllocation[]
   id              String        @id @default(uuid())
   locationId      String
   location        Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
@@ -491,6 +506,7 @@ model LocationItem {
   updatedAt DateTime @updatedAt
 
   @@index([locationId])
+  @@unique([locationId, masterItemId])
 }
 
 // ============================================================
@@ -624,6 +640,9 @@ model MasterItem {
   notes    String?
 
   vendorItems VendorItem[]
+  inventoryItem InventoryItem?
+  locationItems LocationItem[]
+  projectRequirements ProjectRequirement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -673,6 +692,7 @@ model Province {
   code String @unique // kode Kemendagri, mis. '11'
   name String @unique
 
+  projectLocations ProjectLocation[]
   regencies       Regency[]
   vendorDomiciles Vendor[]         @relation("VendorDomicile")
   vendorCoverages VendorCoverage[]
@@ -712,6 +732,8 @@ model Vendor {
 
   coverages VendorCoverage[]
   items     VendorItem[]
+  projectAllocations ProjectAllocation[]
+  locationAllocations LocationSupplyAllocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -730,6 +752,7 @@ enum PriceUnit {
 // (mengacu MasterItem), jumlah maksimal, harga satuan + satuannya.
 // Menjadi dasar pemilihan harga terbaik saat menyusun penawaran.
 model VendorItem {
+  projectAllocations ProjectAllocation[]
   id       String @id @default(uuid())
   vendorId String
   vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
@@ -764,6 +787,7 @@ model VendorCoverage {
 }
 
 model Regency {
+  projectLocations ProjectLocation[]
   id   String      @id @default(uuid())
   code String      @unique // kode Kemendagri, mis. '11.01'
   name String
@@ -777,4 +801,192 @@ model Regency {
 
   @@unique([provinceId, name])
   @@index([provinceId])
+}
+
+
+model UserSession {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshId String
+  refreshIssuedAt DateTime
+  refreshTokenHash String
+  previousTokenHash String?
+  previousValidUntil DateTime?
+  expiresAt DateTime
+  revokedAt DateTime?
+  ipAddress String?
+  userAgent String?
+  lastUsedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id String @id @default(uuid())
+  userId String?
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email String
+  ipAddress String?
+  userAgent String?
+  success Boolean
+  createdAt DateTime @default(now())
+  @@index([email, createdAt])
+  @@index([createdAt])
+}
+
+model UploadedFile {
+  id String @id @default(uuid())
+  filename String @unique
+  originalName String
+  mimeType String
+  sizeBytes Int
+  uploadedById String
+  uploadedBy User @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  locationId String?
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  @@index([locationId])
+  @@index([uploadedById])
+}
+
+enum NotificationSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model Notification {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locationId String?
+  location Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  type String
+  dedupeKey String
+  title String
+  message String
+  href String
+  severity NotificationSeverity @default(INFO)
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt])
+}
+
+enum ProjectStatus {
+  DRAFT
+  PENYUSUNAN_PENAWARAN
+  DIAJUKAN
+  MENANG
+  KALAH
+  OPERASIONAL
+  SELESAI
+  DIBATALKAN
+}
+
+model Project {
+  id String @id @default(uuid())
+  code String @unique
+  name String
+  agencyName String
+  fiscalYear Int
+  description String?
+  hpsAmount Decimal? @db.Decimal(18,2)
+  defaultMarginPct Decimal @default(10) @db.Decimal(5,2)
+  startDate DateTime?
+  endDate DateTime?
+  submissionDeadline DateTime?
+  submittedAt DateTime?
+  status ProjectStatus @default(DRAFT)
+  createdById String
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  locations ProjectLocation[]
+  proposals ProjectProposal[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, fiscalYear])
+}
+
+model ProjectLocation {
+  id String @id @default(uuid())
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name String
+  provinceId String
+  province Province @relation(fields: [provinceId], references: [id], onDelete: Restrict)
+  regencyId String?
+  regency Regency? @relation(fields: [regencyId], references: [id], onDelete: SetNull)
+  city String
+  capacity Int
+  days Int @default(5)
+  address String?
+  latitude Decimal? @db.Decimal(10,8)
+  longitude Decimal? @db.Decimal(11,8)
+  locationId String? @unique
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  requirements ProjectRequirement[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([projectId])
+}
+
+model ProjectRequirement {
+  id String @id @default(uuid())
+  projectLocationId String
+  projectLocation ProjectLocation @relation(fields: [projectLocationId], references: [id], onDelete: Cascade)
+  masterItemId String
+  masterItem MasterItem @relation(fields: [masterItemId], references: [id], onDelete: Restrict)
+  name String
+  unit String
+  ownership ItemOwnership
+  qty Int
+  marginPct Decimal? @db.Decimal(5,2)
+  allocations ProjectAllocation[]
+  @@unique([projectLocationId, masterItemId])
+}
+
+model ProjectAllocation {
+  id String @id @default(uuid())
+  requirementId String
+  requirement ProjectRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  vendorId String
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  vendorItemId String?
+  vendorItem VendorItem? @relation(fields: [vendorItemId], references: [id], onDelete: SetNull)
+  qty Int
+  unitPrice Decimal @db.Decimal(14,2)
+  priceUnit PriceUnit
+  notes String?
+  supplyAllocations LocationSupplyAllocation[]
+  @@unique([requirementId, vendorId])
+  @@index([vendorId])
+}
+
+model ProjectProposal {
+  id String @id @default(uuid())
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version Int
+  documentNumber String @unique
+  snapshot Json
+  costTotal Decimal @db.Decimal(18,2)
+  sellTotal Decimal @db.Decimal(18,2)
+  createdAt DateTime @default(now())
+  @@unique([projectId, version])
+}
+
+model LocationSupplyAllocation {
+  id String @id @default(uuid())
+  locationItemId String
+  locationItem LocationItem @relation(fields: [locationItemId], references: [id], onDelete: Cascade)
+  projectAllocationId String?
+  projectAllocation ProjectAllocation? @relation(fields: [projectAllocationId], references: [id], onDelete: SetNull)
+  vendorId String
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  qty Int
+  unitPrice Decimal @db.Decimal(14,2)
+  priceUnit PriceUnit
+  @@index([locationItemId])
 }

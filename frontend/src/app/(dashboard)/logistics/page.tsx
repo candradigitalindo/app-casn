@@ -1,5 +1,8 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
+import { ListPagination, useListPage, useDebouncedSearch } from "@/components/list-pagination";
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +24,7 @@ import {
 } from "lucide-react";
 import { ShipmentStatus, ShipmentStatusLabels } from "@/types/enums";
 import {
-  useShipments, useLocations, useCreateShipment, useUpdateShipment,
+  useLocations, useCreateShipment, useUpdateShipment,
   useDeleteShipment, useInventoryItems, usePermissions, useProvinces,
 } from "@/lib/hooks";
 import { formatDateShort } from "@/lib/format";
@@ -610,13 +613,15 @@ export default function LogisticsPage() {
   const [editTarget, setEditTarget] = useState<LogisticsShipment | null>(null);
   const { canWrite, canManageShipments } = usePermissions();
 
-  const { data: shipmentsResponse, isLoading: shipmentsLoading } = useShipments({});
-  const { data: locationsResponse, isLoading: locationsLoading } = useLocations({});
+  const debounced = useDebouncedSearch(search);
+  const [page, setPage] = useListPage(`${debounced}:${statusFilter}:${provinceFilter}`);
+  const overview = useQuery({ queryKey: ['shipments', 'list', 'overview', page, debounced, statusFilter, provinceFilter], queryFn: () => apiClient.get<(Location & { shipments: LogisticsShipment[] })[]>('/api/v1/logistics/overview', { params: { page, limit: 20, search: debounced || undefined, status: statusFilter === 'ALL' ? undefined : statusFilter, province: provinceFilter === 'ALL' ? undefined : provinceFilter } }), refetchInterval: 60000 });
+  const { data: locationsResponse } = useLocations({}, createOpen);
   const { data: inventoryResponse } = useInventoryItems();
   const { data: provRes } = useProvinces();
   const masterProvinces = provRes?.data ?? [];
 
-  const allShipments: LogisticsShipment[] = shipmentsResponse?.data ?? [];
+  const allShipments: LogisticsShipment[] = overview.data?.data.flatMap((loc) => loc.shipments) ?? [];
   const allLocations: Location[] = locationsResponse?.data ?? [];
   const inventoryItems: InventoryItem[] = inventoryResponse?.data ?? [];
 
@@ -634,38 +639,18 @@ export default function LogisticsPage() {
   );
 
   const locationData = useMemo(() => {
-    return allLocations.map((loc) => {
+    return (overview.data?.data ?? []).map((loc) => {
       const shipments = allShipments.filter((s) => s.destinationLocationId === loc.id);
       const overallStatus = getLocationStatus(shipments);
       const progress = calcProgress(shipments);
       const items = aggregateItems(shipments, itemNames);
       return { loc, shipments, overallStatus, progress, items };
     });
-  }, [allLocations, allShipments, itemNames]);
+  }, [overview.data, allShipments, itemNames]);
 
-  const filtered = useMemo(() => {
-    return locationData.filter((d) => {
-      const matchStatus = statusFilter === "ALL" || d.overallStatus === statusFilter;
-      const matchProvince = provinceFilter === "ALL" || d.loc.province === provinceFilter;
-      const q = search.toLowerCase();
-      const matchSearch =
-        !q ||
-        d.loc.name.toLowerCase().includes(q) ||
-        d.loc.code.toLowerCase().includes(q) ||
-        d.loc.city.toLowerCase().includes(q) ||
-        d.loc.province.toLowerCase().includes(q);
-      return matchStatus && matchProvince && matchSearch;
-    });
-  }, [locationData, statusFilter, provinceFilter, search]);
-
-  const summary = useMemo(() => {
-    const counts: Record<string, number> = { NONE: 0 };
-    Object.values(ShipmentStatus).forEach((s) => { counts[s] = 0; });
-    locationData.forEach((d) => { counts[d.overallStatus] = (counts[d.overallStatus] ?? 0) + 1; });
-    return counts;
-  }, [locationData]);
-
-  const isLoading = shipmentsLoading || locationsLoading;
+  const filtered = locationData;
+  const summary = overview.data?.summary?.byStatus ?? {};
+  const isLoading = overview.isLoading;
 
   const summaryCards = [
     { key: 'NONE' as StatusStyleKey, label: 'Belum Dikirim', icon: <Package className="h-5 w-5 text-gray-400" /> },
@@ -761,6 +746,7 @@ export default function LogisticsPage() {
         </div>
       )}
 
+      <ListPagination page={page} total={overview.data?.meta?.total} totalPages={overview.data?.meta?.totalPages} onPage={setPage} loading={overview.isFetching} />
       <CreateShipmentDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

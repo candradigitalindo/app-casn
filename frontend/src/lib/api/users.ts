@@ -13,8 +13,8 @@ export interface CreateUserDto {
 }
 
 export const usersApi = {
-  getAll: (params?: { role?: string; search?: string }): Promise<ApiResponse<User[]>> =>
-    apiClient.get('/api/v1/users', { params }),
+  getAll: (params?: { role?: string; search?: string; page?: number; limit?: number }): Promise<ApiResponse<User[]>> =>
+    params?.page ? apiClient.get('/api/v1/users', { params }) : apiClient.getAll('/api/v1/users', params),
 
   create: (data: CreateUserDto): Promise<ApiResponse<User>> =>
     apiClient.post('/api/v1/users', data),

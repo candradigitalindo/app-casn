@@ -33,8 +33,9 @@ export default function LoginPage() {
       );
       login(res.data.user, res.data.tokens.accessToken);
       router.replace("/dashboard");
-    } catch {
-      setError("Email atau password salah.");
+    } catch (error) {
+      const status = (error as { statusCode?: number }).statusCode;
+      setError(status === 429 ? "Terlalu banyak percobaan login. Tunggu beberapa menit lalu coba kembali." : status === 401 ? "Email atau password salah." : "Layanan login belum dapat dihubungi. Coba kembali.");
     } finally {
       setLoading(false);
     }

@@ -21,10 +21,8 @@ export interface UpdateShipmentDto {
 // API Service
 export const logisticsApi = {
   // Get all shipments
-  getShipments: (query?: { status?: ShipmentStatus; destinationLocationId?: string }) =>
-    apiClient.get<LogisticsShipment[]>('/api/v1/logistics/shipments', {
-      params: query,
-    }),
+  getShipments: (query?: { status?: ShipmentStatus; destinationLocationId?: string; page?: number; limit?: number }) =>
+    query?.page ? apiClient.get<LogisticsShipment[]>('/api/v1/logistics/shipments', { params: query }) : apiClient.getAll<LogisticsShipment>('/api/v1/logistics/shipments', { ...query }),
 
   // Create new shipment
   createShipment: (data: CreateShipmentDto) =>

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/lib/stores/auth';
 interface ApiResponse<T> {
   data: T;
   message?: string;
+  summary?: { total?: number; byStatus?: Record<string, number>; byRole?: Record<string, number>; bySeverity?: Record<string, number> };
   meta?: {
     page?: number;
     limit?: number;
@@ -126,6 +127,17 @@ class ApiClient {
   }
 
   // Token Management
+  async refreshSession(): Promise<string> { return this.refreshAccessToken(); }
+
+  async getAll<T>(url: string, params: Record<string, unknown> = {}): Promise<ApiResponse<T[]>> {
+    const first = await this.get<T[]>(url, { params: { ...params, page: 1, limit: 500 } });
+    const rows = [...first.data];
+    for (let page = 2; page <= (first.meta?.totalPages ?? 1); page++) {
+      rows.push(...(await this.get<T[]>(url, { params: { ...params, page, limit: 500 } })).data);
+    }
+    return { ...first, data: rows };
+  }
+
   private async refreshAccessToken(): Promise<string> {
     // Prevent multiple refresh attempts
     if (this.refreshTokenPromise) {

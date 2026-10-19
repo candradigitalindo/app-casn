@@ -8,7 +8,7 @@ const userKeys = {
   list: (params?: object) => [...userKeys.all, params] as const,
 };
 
-export function useUsers(params?: { role?: string; search?: string }) {
+export function useUsers(params?: { role?: string; search?: string; page?: number; limit?: number }) {
   return useQuery({
     queryKey: userKeys.list(params),
     queryFn: () => usersApi.getAll(params),

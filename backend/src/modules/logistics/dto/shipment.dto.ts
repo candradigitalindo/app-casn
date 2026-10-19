@@ -1,6 +1,6 @@
 import {
   IsArray, IsEnum, IsOptional, IsString, ValidateNested,
-  IsInt, Min,
+  IsInt, Min, IsIn,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -67,4 +67,11 @@ export class QueryShipmentDto extends PaginationDto {
   @IsOptional()
   @IsString()
   destinationLocationId?: string;
+}
+
+export class LogisticsOverviewDto extends PaginationDto {
+  @IsOptional() @IsString() destinationLocationId?: string;
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsString() province?: string;
+  @IsOptional() @IsIn(['NONE', ...Object.values(ShipmentStatus)]) status?: string;
 }

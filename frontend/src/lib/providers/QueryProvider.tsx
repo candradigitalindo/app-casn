@@ -28,7 +28,8 @@ export function QueryProvider({ children }: ProvidersProps) {
             // Retry failed requests once
             retry: 1,
             // Don't refetch on window focus by default
-            refetchOnWindowFocus: false,
+            refetchOnWindowFocus: true,
+            refetchInterval: 10 * 60 * 1000,
             // Retry on mount if data is stale
             refetchOnMount: true,
           },

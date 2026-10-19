@@ -40,6 +40,8 @@ Audit 19 Oktober 2026 pada frontend Next.js dan backend NestJS di `app-casn`. Pe
 
 ## Temuan yang masih terbuka
 
+Pembaruan rilis berikutnya: akses unggahan, pembatasan login, sesi, paginasi empat daftar utama, dan relasi master pada tabel di bawah telah ditangani dalam [penambahan fitur keamanan dan operasional](penambahan-fitur-2026-10-19.md). Tabel ini merekam kondisi saat audit awal.
+
 | Prioritas | Temuan | Tindakan berikutnya |
 | --- | --- | --- |
 | P1 | File di `/uploads` dilayani sebagai konten statis tanpa pemeriksaan pengguna per file. Upload generik juga belum membatasi jenis konten. Guard lokasi API tidak melindungi URL file tersebut. | Rancang akses media dengan pemeriksaan pemilik atau URL bertanda tangan, batasi format file, dan cegah konten aktif disajikan pada origin aplikasi. |

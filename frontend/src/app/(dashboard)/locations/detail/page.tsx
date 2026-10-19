@@ -1052,7 +1052,7 @@ function LocationItemsSection({ locationId, canWrite }: { locationId: string; ca
                 {items.map((item: LocationItem, i: number) => (
                   <TableRow key={item.id}>
                     <TableCell className="text-xs text-muted-foreground">{i + 1}.</TableCell>
-                    <TableCell className="text-xs">{item.name}</TableCell>
+                    <TableCell className="text-xs">{item.name}{item.supplyAllocations?.map((allocation) => <p key={allocation.id} className="text-[11px] text-muted-foreground mt-1">{allocation.vendor.name}: {allocation.qty} {item.unit}</p>)}</TableCell>
                     <TableCell className="text-xs text-right">{item.qty}</TableCell>
                     <TableCell className="text-xs">{item.unit}</TableCell>
                     <TableCell><Badge variant="outline" className="text-[10px]">{ItemOwnershipLabels[item.ownership]}</Badge></TableCell>

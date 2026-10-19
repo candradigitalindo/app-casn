@@ -91,6 +91,12 @@ export function useWebSocket() {
         queryClient.invalidateQueries({ queryKey: ['shipments'] });
       });
 
+      socket.on('session:revoked', () => useAuthStore.getState().logout());
+      socket.on('session:expired', () => {
+        apiClient.refreshSession().catch(() => useAuthStore.getState().logout());
+      });
+      socket.on('notification:updated', () => queryClient.invalidateQueries({ queryKey: ['notifications'] }));
+      socket.on('project:updated', () => queryClient.invalidateQueries({ queryKey: ['projects'] }));
       socketRef.current = socket;
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
