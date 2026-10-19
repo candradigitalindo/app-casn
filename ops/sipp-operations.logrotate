@@ -1,4 +1,5 @@
 /var/log/sipp-operations.log {
+    su root root
     weekly
     rotate 8
     compress
