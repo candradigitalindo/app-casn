@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
+import { IsDateString, IsEnum, IsInt, IsOptional, IsString, IsArray, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BeritaAcaraType, BeritaAcaraStatus, TransportMode, DeliveryType } from '@prisma/client';
@@ -11,7 +11,7 @@ export class BeritaAcaraPartyDto {
 
 export class BeritaAcaraItemDto {
   @ApiProperty() @IsString() name: string;
-  @ApiProperty() qty: number;
+  @ApiProperty() @IsInt() @Min(0) qty: number;
   @ApiProperty() @IsString() unit: string;
 }
 
@@ -19,7 +19,7 @@ export class CreateBeritaAcaraDto {
   @ApiProperty({ enum: BeritaAcaraType }) @IsEnum(BeritaAcaraType) type: BeritaAcaraType;
   @ApiProperty() @IsString() locationId: string;
   @ApiProperty() @IsString() title: string;
-  @ApiProperty() @IsString() date: string;
+  @ApiProperty() @IsDateString() date: string;
   // BA berupa upload file — uraian dan penandatangan tidak lagi diisi dari form.
   @ApiPropertyOptional() @IsOptional() @IsString() body?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() fileUrl?: string;

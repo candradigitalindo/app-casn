@@ -1,13 +1,42 @@
 import { apiClient, ApiResponse } from '../api-client';
 import type { Personnel, PersonnelAttendance } from '@/types/models';
-import type { PersonnelRole } from '@/types/enums';
+import type { EducationLevel, Gender, PersonnelRole } from '@/types/enums';
 
-export interface CreatePersonnelDto {
-  locationId: string;
-  name: string;
-  role: PersonnelRole;
+export interface PersonnelProfilePayload {
   phone?: string;
   notes?: string;
+  nik?: string;
+  birthPlace?: string;
+  birthDate?: string | null;
+  gender?: Gender | null;
+  address?: string;
+  email?: string | null;
+  educationLevel?: EducationLevel | null;
+  educationMajor?: string;
+  educationInstitution?: string;
+  diplomaFileUrl?: string | null;
+  diplomaFileName?: string | null;
+  honorPerDay?: number | null;
+  recommendedRole?: PersonnelRole | null;
+}
+
+export interface CreatePersonnelDto extends PersonnelProfilePayload {
+  locationId?: string | null;
+  name: string;
+  role: PersonnelRole;
+}
+
+export interface UpdatePersonnelDto extends PersonnelProfilePayload {
+  locationId?: string | null;
+  name?: string;
+  role?: PersonnelRole;
+}
+
+export interface PersonnelQuery {
+  locationId?: string;
+  search?: string;
+  role?: PersonnelRole;
+  unassigned?: boolean;
 }
 
 export interface UpsertAttendanceDto {
@@ -25,11 +54,24 @@ export const personnelApi = {
   getByLocation: (locationId: string): Promise<ApiResponse<Personnel[]>> =>
     apiClient.get('/api/v1/personnel', { params: { locationId } }),
 
+  getAll: (query: PersonnelQuery = {}): Promise<ApiResponse<Personnel[]>> =>
+    apiClient.get('/api/v1/personnel', {
+      params: {
+        ...(query.locationId ? { locationId: query.locationId } : {}),
+        ...(query.search ? { search: query.search } : {}),
+        ...(query.role ? { role: query.role } : {}),
+        ...(query.unassigned ? { unassigned: 'true' } : {}),
+      },
+    }),
+
   create: (data: CreatePersonnelDto): Promise<ApiResponse<Personnel>> =>
     apiClient.post('/api/v1/personnel', data),
 
-  update: (id: string, data: Partial<Personnel>): Promise<ApiResponse<Personnel>> =>
+  update: (id: string, data: UpdatePersonnelDto): Promise<ApiResponse<Personnel>> =>
     apiClient.patch(`/api/v1/personnel/${id}`, data),
+
+  uploadDiploma: (file: File): Promise<ApiResponse<{ url: string }>> =>
+    apiClient.uploadFile('/api/v1/uploads', file),
 
   delete: (id: string): Promise<ApiResponse<void>> =>
     apiClient.delete(`/api/v1/personnel/${id}`),

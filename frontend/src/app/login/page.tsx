@@ -11,21 +11,12 @@ import { apiClient } from "@/lib/api-client";
 import type { User } from "@/types/models";
 import { Logo } from "@/components/Logo";
 
-const DEMO_ACCOUNTS = [
-  { email: "admin@nbp.co.id", label: "Super Admin" },
-  { email: "logistik@nbp.co.id", label: "Tim Logistik" },
-  { email: "korlok@nbp.co.id", label: "Koordinator Lokasi" },
-  { email: "it@nbp.co.id", label: "Tenaga Teknis IT" },
-  { email: "registrasi@nbp.co.id", label: "Petugas Registrasi" },
-  { email: "pengawas@nbp.co.id", label: "Pengawas" },
-];
-
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
 
-  const [email, setEmail] = useState("admin@nbp.co.id");
-  const [password, setPassword] = useState("andalan123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +34,7 @@ export default function LoginPage() {
       login(res.data.user, res.data.tokens.accessToken);
       router.replace("/dashboard");
     } catch {
-      setError("Email atau password salah. Coba akun demo di bawah.");
+      setError("Email atau password salah.");
     } finally {
       setLoading(false);
     }
@@ -56,10 +47,10 @@ export default function LoginPage() {
         {/* Header */}
         <div className="mb-6">
           <div className="mb-4 flex items-center gap-3">
-            <Logo className="h-10 w-10 shrink-0 text-primary" />
+            <Logo className="h-10 w-10 shrink-0" />
             <div>
-              <p className="text-base font-bold uppercase leading-tight tracking-tight">SIPP Seleksi</p>
-              <p className="text-[11px] font-medium text-muted-foreground">Sistem Aplikasi Pengelolaan dan Pengendalian Pelaksanaan Seleksi di Seluruh Titik Lokasi</p>
+              <p className="text-base font-bold leading-tight tracking-tight">Pengelolaan &amp; Pengendalian Pelaksanaan Seleksi</p>
+              <p className="text-[11px] font-medium text-muted-foreground">di Seluruh Titik Lokasi Tes secara Online</p>
             </div>
           </div>
           <h2 className="text-xl font-bold tracking-tight text-foreground">Masuk ke akun Anda</h2>
@@ -115,26 +106,6 @@ export default function LoginPage() {
             {loading ? "Memproses..." : "Masuk"}
           </Button>
         </form>
-
-        <div className="mt-6">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Akun demo (password: andalan123)</p>
-          <div className="flex flex-wrap gap-2">
-            {DEMO_ACCOUNTS.map((acc) => (
-              <button
-                key={acc.email}
-                type="button"
-                onClick={() => setEmail(acc.email)}
-                className={`rounded border px-2 py-1 text-[10px] transition-colors ${
-                  email === acc.email
-                    ? "border-primary/30 bg-primary/10 font-medium text-primary"
-                    : "border-muted bg-muted text-muted-foreground hover:border-border hover:text-foreground"
-                }`}
-              >
-                {acc.label}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

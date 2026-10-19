@@ -32,29 +32,29 @@ export class AuthService {
       throw new UnauthorizedException('Email atau password salah');
     }
 
-    await this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
 
-    const tokens = await this.generateTokens(user.id, user.email, user.role);
+    const tokens = await this.generateTokens(updatedUser.id, updatedUser.email, updatedUser.role);
 
-    const { password: _, ...safeUser } = user;
+    const { password: _, ...safeUser } = updatedUser;
 
     return { user: safeUser, tokens };
   }
 
-  async refresh(userId: string, email: string, role: string) {
+  async refresh(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { isActive: true },
+      select: { isActive: true, email: true, role: true },
     });
 
     if (!user?.isActive) {
       throw new ForbiddenException('Akun tidak aktif');
     }
 
-    const tokens = await this.generateTokens(userId, email, role);
+    const tokens = await this.generateTokens(userId, user.email, user.role);
     return { tokens };
   }
 
@@ -94,10 +94,11 @@ export class AuthService {
       }),
     ]);
 
+    const payloadTimes = this.jwtService.decode<{ exp: number; iat: number }>(accessToken);
     return {
       accessToken,
       refreshToken,
-      expiresIn: 15 * 60, // detik
+      expiresIn: payloadTimes.exp - payloadTimes.iat,
     };
   }
 

@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { OPERATIONAL_ROLES } from '../../common/constants/roles';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { InstallationsService } from './installations.service';
 import { UpdateProgressDto, PhotoEvidenceDto } from './installations.dto';
@@ -10,18 +12,18 @@ export class InstallationsController {
   constructor(private readonly service: InstallationsService) {}
 
   @Get('summary')
-  getSummary() {
-    return this.service.getSummary();
+  getSummary(@Query('locationId') locationId?: string) {
+    return this.service.getSummary(locationId);
   }
 
   @Get('alerts/delays')
-  getDelayAlerts() {
-    return this.service.getDelayAlerts();
+  getDelayAlerts(@Query('locationId') locationId?: string) {
+    return this.service.getDelayAlerts(locationId);
   }
 
   @Get('progress')
-  getAll() {
-    return this.service.getAll();
+  getAll(@Query('locationId') locationId?: string) {
+    return this.service.getAll(locationId);
   }
 
   @Get('progress/:locationId')
@@ -30,11 +32,13 @@ export class InstallationsController {
   }
 
   @Post('progress')
+  @Roles(...OPERATIONAL_ROLES)
   upsert(@Body() dto: UpdateProgressDto) {
     return this.service.upsert(dto);
   }
 
   @Post('progress/:id/photos')
+  @Roles(...OPERATIONAL_ROLES)
   addPhoto(@Param('id') id: string, @Body() photo: PhotoEvidenceDto) {
     return this.service.addPhoto(id, photo);
   }

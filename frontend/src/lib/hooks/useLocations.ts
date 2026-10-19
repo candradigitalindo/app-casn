@@ -1,8 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { locationsApi, LocationQuery, ProvinceData } from '@/lib/api/locations';
+import { locationsApi, LocationQuery } from '@/lib/api/locations';
 import { handleQueryError } from '@/lib/api-client';
 import type { Location, DashboardStats } from '@/types/models';
-import { LocationStatus } from '@/types/enums';
 import { useAuthStore } from '@/lib/stores/auth';
 
 // Query Keys
@@ -12,8 +11,6 @@ export const locationKeys = {
   details: () => [...locationKeys.all, 'detail'] as const,
   detail: (id: string) => [...locationKeys.details(), id] as const,
   stats: () => [...locationKeys.all, 'stats'] as const,
-  provinceStats: () => [...locationKeys.all, 'province-stats'] as const,
-  installations: (id: string) => [...locationKeys.all, 'installations', id] as const,
 };
 
 // Hooks
@@ -58,42 +55,7 @@ export function useLocationStats() {
   });
 }
 
-export function useProvinceStats() {
-  return useQuery({
-    queryKey: locationKeys.provinceStats(),
-    queryFn: () => locationsApi.getProvinceStats(),
-    // Refetch every minute
-    refetchInterval: 60 * 1000,
-  });
-}
-
-export function useLocationInstallations(id: string) {
-  return useQuery({
-    queryKey: locationKeys.installations(id),
-    queryFn: () => locationsApi.getLocationInstallations(id),
-    enabled: !!id,
-  });
-}
-
 // Mutations
-export function useUpdateLocationStatus() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: LocationStatus }) =>
-      locationsApi.updateLocationStatus(id, status),
-    onSuccess: (data, variables) => {
-      // Invalidate and refetch location details
-      queryClient.invalidateQueries({ queryKey: locationKeys.detail(variables.id) });
-      // Invalidate locations list
-      queryClient.invalidateQueries({ queryKey: locationKeys.lists() });
-      // Invalidate stats
-      queryClient.invalidateQueries({ queryKey: locationKeys.stats() });
-    },
-    onError: handleQueryError,
-  });
-}
-
 export function useCreateLocation() {
   const queryClient = useQueryClient();
 
@@ -146,8 +108,9 @@ export function useUpdateCapacity() {
     onSuccess: (_data, variables) => {
       // Invalidate location detail
       queryClient.invalidateQueries({ queryKey: locationKeys.detail(variables.id) });
-      // Invalidate location items (they get auto-scaled)
-      queryClient.invalidateQueries({ queryKey: ['location-items', variables.id] });
+      // Invalidate seluruh cache item (kuantitas di-scale ulang, termasuk
+      // daftar gabungan ['location-items','all'] milik halaman Instalasi)
+      queryClient.invalidateQueries({ queryKey: ['location-items'] });
       // Invalidate locations list
       queryClient.invalidateQueries({ queryKey: locationKeys.lists() });
     },
@@ -159,20 +122,4 @@ export function useUpdateCapacity() {
 export function useDashboardStats(): DashboardStats | undefined {
   const { data } = useLocationStats();
   return data?.data;
-}
-
-// Helper hook for filtered locations
-export function useFilteredLocations(query: LocationQuery = {}) {
-  return useLocations(query);
-}
-
-// Helper hook for locations by status
-export function useLocationsByStatus(status: LocationStatus) {
-  return useLocations({ status });
-}
-
-// Helper hook for active locations count
-export function useActiveLocationsCount() {
-  const { data } = useLocations({ status: LocationStatus.READY });
-  return data?.data.length || 0;
 }

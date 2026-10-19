@@ -151,7 +151,7 @@ const SECTIONS: Section[] = [
     description:
       "Setiap pengguna wajib masuk menggunakan akun yang telah disiapkan administrator sebelum dapat mengakses sistem.",
     steps: [
-      { label: "Buka browser dan akses alamat sistem SIPP Seleksi" },
+      { label: "Buka browser dan akses alamat sistem Pengelolaan & Pengendalian Pelaksanaan Seleksi" },
       { label: "Masukkan alamat email terdaftar pada kolom Email" },
       { label: "Masukkan password akun Anda" },
       { label: "Klik tombol Masuk" },
@@ -207,7 +207,7 @@ const SECTIONS: Section[] = [
     title: "Titik Lokasi",
     icon: MapPin,
     accent: "emerald",
-    roles: ["Super Admin", "Koordinator", "Pengawas BKN (lihat)"],
+    roles: ["Super Admin", "Koordinator", "Pengawas Instansi (lihat)"],
     description:
       "Mengelola seluruh tempat pelaksanaan seleksi. Setiap lokasi melewati 6 tahap berurutan: Persiapan → Instalasi → Uji Fungsi → Pelaksanaan → Deinstalasi → Serah Terima.",
     steps: [
@@ -257,7 +257,7 @@ const SECTIONS: Section[] = [
     title: "Logistik",
     icon: Truck,
     accent: "orange",
-    roles: ["Super Admin", "Tim Logistik", "Koordinator", "Pengawas BKN (lihat)"],
+    roles: ["Super Admin", "Tim Logistik", "Koordinator", "Pengawas Instansi (lihat)"],
     description:
       "Mengelola pengiriman perlengkapan dan perangkat dari gudang pusat ke titik lokasi, dari pengemasan hingga konfirmasi penerimaan.",
     steps: [
@@ -303,7 +303,7 @@ const SECTIONS: Section[] = [
     title: "Instalasi",
     icon: Wrench,
     accent: "violet",
-    roles: ["Super Admin", "Koordinator", "Tenaga Teknis", "Pengawas BKN (lihat)"],
+    roles: ["Super Admin", "Koordinator", "Tenaga Teknis", "Pengawas Instansi (lihat)"],
     description:
       "Mencatat dan memantau progres pemasangan perangkat per titik lokasi melalui persentase penyelesaian tiap item barang.",
     steps: [
@@ -381,7 +381,7 @@ const SECTIONS: Section[] = [
     title: "Tenaga Teknis",
     icon: HardHat,
     accent: "amber",
-    roles: ["Super Admin", "Koordinator", "Petugas Registrasi", "Pengawas BKN (lihat)"],
+    roles: ["Super Admin", "Koordinator", "Petugas Registrasi", "Pengawas Instansi (lihat)"],
     description:
       "Mengelola data SDM yang bertugas di tiap lokasi dan pencatatan kehadiran harian selama masa persiapan hingga pelaksanaan seleksi.",
     steps: [
@@ -389,7 +389,7 @@ const SECTIONS: Section[] = [
       { label: "Klik kartu lokasi untuk membuka daftar personel yang ditugaskan" },
       {
         label: "Di tab Presensi Harian, pilih tanggal lalu tandai kehadiran tiap personel",
-        detail: "Peran: Koordinator, Tenaga IT, Elektrikal, Tenaga Sarpras, dan Pengawas BKN",
+        detail: "Peran: Koordinator, Tenaga IT, Elektrikal, Tenaga Sarpras, dan Pengawas Instansi",
       },
       { label: "Upload bukti kehadiran berupa foto lembar absensi" },
       { label: "Buka tab Rekap & Unduh untuk rekapitulasi per periode dan unduh CSV" },
@@ -419,7 +419,7 @@ const SECTIONS: Section[] = [
     title: "Dokumen",
     icon: FolderOpen,
     accent: "teal",
-    roles: ["Super Admin", "Tim Logistik", "Koordinator", "Pengawas BKN (lihat)"],
+    roles: ["Super Admin", "Tim Logistik", "Koordinator", "Pengawas Instansi (lihat)"],
     description:
       "Repositori digital untuk seluruh berkas administrasi per lokasi — mulai dari kontrak hingga foto dokumentasi lapangan.",
     steps: [
@@ -446,7 +446,7 @@ const SECTIONS: Section[] = [
     title: "Laporan",
     icon: FileText,
     accent: "cyan",
-    roles: ["Super Admin", "Pengawas BKN", "Pimpinan", "PPK", "Inspektorat"],
+    roles: ["Super Admin", "Pengawas Instansi", "Pimpinan", "PPK", "Inspektorat"],
     description:
       "Rekap menyeluruh progres pekerjaan seluruh titik lokasi, dirancang untuk pemantauan dan evaluasi pimpinan serta pengawas.",
     steps: [
@@ -458,7 +458,7 @@ const SECTIONS: Section[] = [
       },
       { label: "Gunakan filter provinsi atau rentang tanggal untuk memfokuskan data" },
     ],
-    tips: ["Hanya dapat diakses Super Admin dan role pengawasan BKN."],
+    tips: ["Hanya dapat diakses Super Admin dan role pengawasan instansi."],
     screenshots: [
       {
         src: imgSrc("laporan", "view-laporan.png"),
@@ -743,7 +743,7 @@ export default function PanduanPage() {
               <BookOpen className="h-6 w-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold leading-tight">Panduan Pengguna SIPP Seleksi</h1>
+              <h1 className="text-xl sm:text-2xl font-bold leading-tight">Panduan Pengguna Pengelolaan &amp; Pengendalian Pelaksanaan Seleksi</h1>
               <p className="text-sm text-white/85 mt-1 leading-relaxed">
                 Pilih modul di samping untuk melihat panduan langkah demi langkah beserta tangkapan layar.
               </p>
@@ -855,7 +855,7 @@ export default function PanduanPage() {
           <p className="text-xs text-muted-foreground mt-0.5">
             Hubungi administrator sistem untuk pertanyaan atau kendala akun.
           </p>
-          <p className="text-[11px] text-muted-foreground/60 mt-3">SIPP Seleksi — Panduan Pengguna v1.0</p>
+          <p className="text-[11px] text-muted-foreground/60 mt-3">Pengelolaan &amp; Pengendalian Pelaksanaan Seleksi — Panduan Pengguna v1.0</p>
         </div>
       </div>
 
@@ -1004,11 +1004,12 @@ function PanduanPrintDocument() {
         <p style={{ letterSpacing: 2, fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
           PANDUAN PENGGUNA
         </p>
-        <h1 style={{ fontSize: 40, fontWeight: 800, lineHeight: 1.15, margin: 0 }}>
-          SIPP SELEKSI
+        <h1 style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.2, margin: 0 }}>
+          Pengelolaan &amp; Pengendalian Pelaksanaan Seleksi
         </h1>
         <p style={{ fontSize: 16, opacity: 0.9, marginTop: 16, maxWidth: 460 }}>
           Sistem Aplikasi Pengelolaan dan Pengendalian Pelaksanaan Seleksi CASN
+          di Seluruh Titik Lokasi Tes secara Online
         </p>
         <div
           style={{
@@ -1043,7 +1044,7 @@ function PanduanPrintDocument() {
       <section className="pdf-page-break" style={{ paddingTop: 8 }}>
         <PdfHeading>Teknologi yang Dipakai</PdfHeading>
         <p style={{ fontSize: 13, color: "#475569", margin: "8px 0 20px", lineHeight: 1.6 }}>
-          SIPP Seleksi dibangun menggunakan teknologi modern untuk menjamin keandalan,
+          Aplikasi ini dibangun menggunakan teknologi modern untuk menjamin keandalan,
           keamanan, dan kemudahan penggunaan. Berikut komponen utama yang digunakan.
         </p>
         {TECH_STACK.map((group) => (
@@ -1263,7 +1264,7 @@ function PanduanPrintDocument() {
             Untuk pertanyaan atau kendala akun, hubungi administrator sistem.
           </p>
           <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 20 }}>
-            SIPP Seleksi — Panduan Pengguna v1.0
+            Pengelolaan &amp; Pengendalian Pelaksanaan Seleksi — Panduan Pengguna v1.0
           </p>
         </div>
       </section>

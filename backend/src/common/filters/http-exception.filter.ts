@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { v4 as uuid } from 'uuid';
+import { Prisma } from '@prisma/client';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -18,18 +19,25 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const status =
+    const prismaError = exception instanceof Prisma.PrismaClientKnownRequestError ? exception : null;
+    const databaseErrors: Record<string, { status: number; message: string }> = {
+      P2002: { status: HttpStatus.CONFLICT, message: 'Nilai unik sudah digunakan oleh data lain' },
+      P2003: { status: HttpStatus.CONFLICT, message: 'Relasi data tidak valid atau masih digunakan oleh data lain' },
+      P2025: { status: HttpStatus.NOT_FOUND, message: 'Data tidak ditemukan' },
+    };
+    const mapped = prismaError ? databaseErrors[prismaError.code] : undefined;
+    const status = mapped?.status ?? (
       exception instanceof HttpException
         ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+        : HttpStatus.INTERNAL_SERVER_ERROR);
 
     const raw =
       exception instanceof HttpException ? exception.getResponse() : null;
 
-    const message =
+    const message = mapped?.message ?? (
       typeof raw === 'string'
         ? raw
-        : (raw as any)?.message || 'Internal server error';
+        : (raw as any)?.message || 'Internal server error');
 
     // class-validator mengirim array error di field message
     const errors =

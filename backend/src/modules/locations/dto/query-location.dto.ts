@@ -7,6 +7,11 @@ export class QueryLocationDto extends PaginationDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  locationId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   province?: string;
 
   @ApiPropertyOptional()

@@ -28,7 +28,7 @@ export function useCreateUser() {
 export function useUpdateUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Omit<CreateUserDto, 'password'>> & { password?: string } }) =>
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof usersApi.update>[1] }) =>
       usersApi.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
     onError: handleQueryError,
@@ -51,12 +51,4 @@ export function useToggleUserActive() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
     onError: handleQueryError,
   });
-}
-
-export function useUserRoleSummary() {
-  const { data } = useUsers();
-  const users: User[] = data?.data ?? [];
-  const summary: Record<string, number> = {};
-  users.forEach((u) => { summary[u.role] = (summary[u.role] ?? 0) + 1; });
-  return summary;
 }

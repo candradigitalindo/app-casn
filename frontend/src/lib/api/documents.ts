@@ -20,9 +20,6 @@ export const documentsApi = {
   create: (data: CreateDocumentDto): Promise<ApiResponse<LocationDocument>> =>
     apiClient.post('/api/v1/documents', data),
 
-  update: (id: string, data: Partial<LocationDocument>): Promise<ApiResponse<LocationDocument>> =>
-    apiClient.patch(`/api/v1/documents/${id}`, data),
-
   delete: (id: string): Promise<ApiResponse<void>> =>
     apiClient.delete(`/api/v1/documents/${id}`),
 };

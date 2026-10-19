@@ -9,7 +9,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
@@ -57,20 +57,21 @@ export class AuthController {
     @CurrentUser() user: any,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.refresh(user.sub, user.email, user.role);
+    const result = await this.authService.refresh(user.sub);
 
     res.cookie('refresh_token', result.tokens.refreshToken, COOKIE_OPTIONS);
 
     return ok(result, 'Token diperbarui');
   }
 
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout dan hapus refresh token cookie' })
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('refresh_token');
+    const { maxAge: _, ...cookieOptions } = COOKIE_OPTIONS;
+    res.clearCookie('refresh_token', cookieOptions);
     return ok(null, 'Logout berhasil');
   }
 

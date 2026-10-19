@@ -84,6 +84,7 @@ export function useAddStagePhoto(locationId: string) {
       stagesApi.addPhoto(id, { url, caption, category, takenAt: new Date().toISOString() }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: stageKeys.location(locationId) });
+      queryClient.invalidateQueries({ queryKey: ['documents', locationId] });
     },
     onError: handleQueryError,
   });
@@ -96,6 +97,7 @@ export function useDeleteStagePhoto(locationId: string) {
       stagesApi.deletePhoto(stageId, photoId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: stageKeys.location(locationId) });
+      queryClient.invalidateQueries({ queryKey: ['documents', locationId] });
     },
     onError: handleQueryError,
   });
@@ -115,17 +117,7 @@ export function useCreateBeritaAcara() {
   return useMutation({
     mutationFn: (data: CreateBeritaAcaraDto) => beritaAcaraApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: beritaAcaraKeys.lists() });
-    },
-    onError: handleQueryError,
-  });
-}
-
-export function useUpdateBeritaAcara() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<BeritaAcara> }) => beritaAcaraApi.update(id, data),
-    onSuccess: () => {
+      // beritaAcaraKeys.all mencakup list DAN rekap laporan ['berita-acara','report']
       queryClient.invalidateQueries({ queryKey: beritaAcaraKeys.all });
     },
     onError: handleQueryError,
@@ -163,7 +155,8 @@ export function useDeleteBeritaAcara() {
   return useMutation({
     mutationFn: (id: string) => beritaAcaraApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: beritaAcaraKeys.lists() });
+      // beritaAcaraKeys.all mencakup list DAN rekap laporan ['berita-acara','report']
+      queryClient.invalidateQueries({ queryKey: beritaAcaraKeys.all });
     },
     onError: handleQueryError,
   });

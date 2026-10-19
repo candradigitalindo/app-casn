@@ -12,6 +12,7 @@ import {
   CreateLocationItemDto,
   UpdateLocationItemDto,
   UpdateCapacityDto,
+  SeedStandardItemsDto,
 } from './dto/location-item.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ok } from '../../common/dto/api-response.dto';
@@ -32,15 +33,15 @@ export class LocationsController {
 
   @Get('stats/summary')
   @ApiOperation({ summary: 'Statistik nasional untuk dashboard' })
-  async getStatsSummary() {
-    const data = await this.svc.getStatsSummary();
+  async getStatsSummary(@Query('locationId') locationId?: string) {
+    const data = await this.svc.getStatsSummary(locationId);
     return ok(data);
   }
 
   @Get('stats/province')
   @ApiOperation({ summary: 'Statistik per provinsi' })
-  async getStatsProvince() {
-    const data = await this.svc.getStatsProvince();
+  async getStatsProvince(@Query('locationId') locationId?: string) {
+    const data = await this.svc.getStatsProvince(locationId);
     return ok(data);
   }
 
@@ -52,13 +53,13 @@ export class LocationsController {
 
   @Get('items/all')
   @ApiOperation({ summary: 'Semua item barang di seluruh lokasi' })
-  async getAllItems() {
-    const data = await this.svc.getAllItems();
+  async getAllItems(@Query('locationId') locationId?: string) {
+    const data = await this.svc.getAllItems(locationId);
     return ok(data);
   }
 
   @Get('items/master')
-  @ApiOperation({ summary: 'Master data 38 item standar BKN (kuantitas per tier kapasitas)' })
+  @ApiOperation({ summary: 'Master data 38 item standar instansi penyelenggara (kuantitas per tier kapasitas)' })
   async getMasterItems() {
     const data = await this.svc.getMasterItems();
     return ok(data);
@@ -104,7 +105,7 @@ export class LocationsController {
   }
 
   @Patch(':id/capacity')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.COORDINATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.LOGISTICS, UserRole.COORDINATOR)
   @ApiOperation({ summary: 'Update kapasitas lokasi' })
   async updateCapacity(@Param('id') id: string, @Body() dto: UpdateCapacityDto) {
     const data = await this.svc.updateCapacity(id, dto);
@@ -136,13 +137,21 @@ export class LocationsController {
   @Post(':id/items/seed-standard')
   @Roles(UserRole.SUPER_ADMIN, UserRole.LOGISTICS)
   @ApiOperation({ summary: 'Seed item standar berdasarkan kapasitas' })
-  async seedStandardItems(@Param('id') id: string) {
-    const data = await this.svc.seedStandardItems(id);
+  async seedStandardItems(@Param('id') id: string, @Body() body: SeedStandardItemsDto) {
+    const data = await this.svc.seedStandardItems(id, body.capacity);
     return ok(data, `${data.length} item standar berhasil dibuat`);
   }
 
   @Patch(':id/items/:itemId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.LOGISTICS, UserRole.COORDINATOR)
+  // Tenaga teknis lapangan meng-update persentase instalasi item dari halaman Instalasi.
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.LOGISTICS,
+    UserRole.COORDINATOR,
+    UserRole.TECHNICAL_IT,
+    UserRole.TECHNICAL_ELECTRICAL,
+    UserRole.TECHNICAL_SARPRAS,
+  )
   @ApiOperation({ summary: 'Update barang di lokasi' })
   async updateItem(
     @Param('id') id: string,

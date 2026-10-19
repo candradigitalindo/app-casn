@@ -2,30 +2,16 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { ok } from '../../common/dto/api-response.dto';
 import { UpdateProgressDto, PhotoEvidenceDto } from './installations.dto';
-import { InstallationMilestone } from '@prisma/client';
 import { EventsGateway } from '../events/events.gateway';
-import { syncLocationStatusFromStages } from '../../common/utils/location-status.util';
-
-const MILESTONE_ORDER: InstallationMilestone[] = [
-  'LAYOUT_20',
-  'INFRASTRUCTURE_50',
-  'DEPLOYMENT_80',
-  'COMPLETED_100',
-];
-
-const MILESTONE_PCT: Record<InstallationMilestone, number> = {
-  LAYOUT_20: 20,
-  INFRASTRUCTURE_50: 50,
-  DEPLOYMENT_80: 80,
-  COMPLETED_100: 100,
-};
+import { summarizeInstallation, syncInstallationStageFromItems } from '../../common/utils/installation-progress.util';
 
 @Injectable()
 export class InstallationsService {
   constructor(private prisma: PrismaService, private events: EventsGateway) {}
 
-  async getAll() {
+  async getAll(locationId?: string) {
     const data = await this.prisma.installationProgress.findMany({
+      where: locationId ? { locationId } : {},
       orderBy: [{ locationId: 'asc' }, { milestone: 'asc' }],
       include: { location: { select: { name: true, province: true } } },
     });
@@ -44,7 +30,10 @@ export class InstallationsService {
   }
 
   async upsert(dto: UpdateProgressDto) {
-    const completedAt = dto.percentage >= 100 ? new Date() : undefined;
+    const existing = await this.prisma.installationProgress.findUnique({
+      where: { locationId_milestone: { locationId: dto.locationId, milestone: dto.milestone } },
+    });
+    const completedAt = dto.percentage >= 100 ? existing?.completedAt ?? new Date() : null;
 
     const data = await this.prisma.installationProgress.upsert({
       where: { locationId_milestone: { locationId: dto.locationId, milestone: dto.milestone } },
@@ -66,50 +55,11 @@ export class InstallationsService {
       },
     });
 
-    // Sinkronkan milestone instalasi → fase INSTALASI tahapan pekerjaan,
-    // lalu turunkan status lokasi lewat aturan tunggal berbasis tahapan.
-    await this.syncInstallationStage(dto.locationId);
-    await syncLocationStatusFromStages(this.prisma, dto.locationId);
+    // Endpoint milestone lama tidak menjadi sumber progres tahap instalasi.
+    await syncInstallationStageFromItems(this.prisma, dto.locationId);
 
     this.events.emitInstallationUpdated(dto.locationId, data);
     return ok(data, 'Progress instalasi diperbarui');
-  }
-
-  // Fase INSTALASI di tahapan pekerjaan mengikuti rata-rata 4 milestone
-  // instalasi — satu sumber data, tidak lagi diisi ganda.
-  private async syncInstallationStage(locationId: string) {
-    const progresses = await this.prisma.installationProgress.findMany({
-      where: { locationId },
-    });
-    const totalPct = progresses.reduce((s, p) => s + p.percentage, 0);
-    const avg = Math.round(totalPct / MILESTONE_ORDER.length);
-    const allComplete =
-      progresses.length === MILESTONE_ORDER.length &&
-      progresses.every((p) => p.percentage >= 100);
-
-    const status = allComplete
-      ? 'COMPLETED'
-      : avg > 0
-        ? 'IN_PROGRESS'
-        : 'NOT_STARTED';
-
-    await this.prisma.locationStage.upsert({
-      where: { locationId_phase: { locationId, phase: 'INSTALASI' } },
-      create: {
-        locationId,
-        phase: 'INSTALASI',
-        status,
-        progress: Math.min(avg, 100),
-        ...(status !== 'NOT_STARTED' ? { startedAt: new Date() } : {}),
-        ...(allComplete ? { completedAt: new Date() } : {}),
-      },
-      update: {
-        status,
-        progress: Math.min(avg, 100),
-        ...(status === 'IN_PROGRESS' ? { completedAt: null } : {}),
-        ...(allComplete ? { completedAt: new Date() } : {}),
-      },
-    });
   }
 
   async addPhoto(progressId: string, photo: PhotoEvidenceDto) {
@@ -124,10 +74,11 @@ export class InstallationsService {
     return ok(updated, 'Foto berhasil ditambahkan');
   }
 
-  async getSummary() {
+  async getSummary(locationId?: string) {
     // Akumulasi dihitung dari persentase instalasi barang di lokasi
     // (LocationItem.installationPct) — sumber yang sama dengan halaman Instalasi.
     const locations = await this.prisma.location.findMany({
+      where: locationId ? { id: locationId } : {},
       select: {
         id: true,
         name: true,
@@ -138,11 +89,7 @@ export class InstallationsService {
     });
 
     const summary = locations.map((loc) => {
-      const items = loc.locationItems;
-      const completed = items.filter((i) => i.installationPct >= 100).length;
-      const avgPct = items.length
-        ? Math.round(items.reduce((s, i) => s + i.installationPct, 0) / items.length)
-        : 0;
+      const { completed, total, average } = summarizeInstallation(loc.locationItems);
 
       return {
         locationId: loc.id,
@@ -150,24 +97,24 @@ export class InstallationsService {
         province: loc.province,
         status: loc.status,
         completedMilestones: completed,
-        totalMilestones: items.length,
-        averagePercentage: avgPct,
+        totalMilestones: total,
+        averagePercentage: average,
       };
     });
 
     return ok(summary);
   }
 
-  async getDelayAlerts() {
+  async getDelayAlerts(locationId?: string) {
     const locations = await this.prisma.location.findMany({
-      where: { status: { notIn: ['READY', 'CLOSED'] } },
+      where: { ...(locationId ? { id: locationId } : {}), status: { notIn: ['READY', 'CLOSED'] } },
       select: {
         id: true,
         name: true,
         province: true,
         startDate: true,
         status: true,
-        installationProgress: true,
+        locationItems: { select: { installationPct: true } },
       },
     });
 
@@ -175,9 +122,7 @@ export class InstallationsService {
     const alerts = locations
       .filter((loc) => {
         if (!loc.startDate) return false;
-        const avgPct = loc.installationProgress.length
-          ? loc.installationProgress.reduce((s, m) => s + m.percentage, 0) / loc.installationProgress.length
-          : 0;
+        const avgPct = summarizeInstallation(loc.locationItems).average;
         const daysSinceStart = (now.getTime() - loc.startDate.getTime()) / 86_400_000;
         return daysSinceStart > 1 && avgPct < 20;
       })

@@ -11,38 +11,33 @@ export class ReportsController {
   constructor(private readonly service: ReportsService) {}
 
   @Get('executive')
-  getExecutiveDashboard() {
-    return this.service.getExecutiveDashboard();
+  getExecutiveDashboard(@Query('locationId') locationId?: string) {
+    return this.service.getExecutiveDashboard(locationId);
   }
 
   @Get('locations')
-  getLocationsReport() {
-    return this.service.getLocationsReport();
-  }
-
-  @Get('attendance')
-  getAttendanceReport(@Query('locationId') locationId?: string) {
-    return this.service.getAttendanceReport(locationId);
+  getLocationsReport(@Query('locationId') locationId?: string) {
+    return this.service.getLocationsReport(locationId);
   }
 
   @Get('incidents')
-  getIncidentsReport() {
-    return this.service.getIncidentsReport();
+  getIncidentsReport(@Query('locationId') locationId?: string) {
+    return this.service.getIncidentsReport(locationId);
   }
 
   @Get('logistics')
-  getLogisticsReport() {
-    return this.service.getLogisticsReport();
+  getLogisticsReport(@Query('locationId') locationId?: string) {
+    return this.service.getLogisticsReport(locationId);
   }
 
   @Get('installations')
-  getInstallationsReport() {
-    return this.service.getInstallationsReport();
+  getInstallationsReport(@Query('locationId') locationId?: string) {
+    return this.service.getInstallationsReport(locationId);
   }
 
   @Get('berita-acara')
-  getBeritaAcaraReport() {
-    return this.service.getBeritaAcaraReport();
+  getBeritaAcaraReport(@Query('locationId') locationId?: string) {
+    return this.service.getBeritaAcaraReport(locationId);
   }
 
   @ApiQuery({ name: 'entityType', required: false })

@@ -1,3 +1,4 @@
+import { OPERATIONAL_ROLES } from '../../common/constants/roles';
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { BeritaAcaraService } from './berita-acara.service';
@@ -23,11 +24,13 @@ export class BeritaAcaraController {
   }
 
   @Post()
+  @Roles(...OPERATIONAL_ROLES)
   create(@Body() dto: CreateBeritaAcaraDto, @CurrentUser() user: User) {
     return this.service.create(dto, user.id);
   }
 
   @Patch(':id')
+  @Roles(...OPERATIONAL_ROLES)
   update(@Param('id') id: string, @Body() dto: UpdateBeritaAcaraDto) {
     return this.service.update(id, dto);
   }
@@ -47,6 +50,7 @@ export class BeritaAcaraController {
   }
 
   @Delete(':id')
+  @Roles(...OPERATIONAL_ROLES)
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }

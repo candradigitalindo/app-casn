@@ -3,7 +3,10 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto, UpdateDocumentDto } from './documents.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { User } from '@prisma/client';
+
+import { OPERATIONAL_ROLES } from '../../common/constants/roles';
 
 @ApiTags('Documents')
 @ApiBearerAuth()
@@ -17,16 +20,19 @@ export class DocumentsController {
   }
 
   @Post()
+  @Roles(...OPERATIONAL_ROLES)
   create(@Body() dto: CreateDocumentDto, @CurrentUser() user: User) {
     return this.service.create(dto, user.id);
   }
 
   @Patch(':id')
+  @Roles(...OPERATIONAL_ROLES)
   update(@Param('id') id: string, @Body() dto: UpdateDocumentDto) {
     return this.service.update(id, dto);
   }
 
   @Delete(':id')
+  @Roles(...OPERATIONAL_ROLES)
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }

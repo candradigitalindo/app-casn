@@ -1,13 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { ok } from '../../common/dto/api-response.dto';
+import { summarizeInstallation } from '../../common/utils/installation-progress.util';
 
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
 
-  async getLocationsReport() {
+  async getLocationsReport(locationId?: string) {
     const locations = await this.prisma.location.findMany({
+      where: locationId ? { id: locationId } : {},
       select: {
         id: true,
         code: true,
@@ -20,7 +22,7 @@ export class ReportsService {
         endDate: true,
         coordinator: { select: { name: true } },
         incidentTickets: { select: { id: true, status: true, severity: true } },
-        installationProgress: { select: { milestone: true, percentage: true } },
+        locationItems: { select: { installationPct: true } },
       },
       orderBy: [{ province: 'asc' }, { name: 'asc' }],
     });
@@ -29,51 +31,15 @@ export class ReportsService {
       ...loc,
       openTickets: loc.incidentTickets.filter((t) => !['RESOLVED', 'CLOSED'].includes(t.status)).length,
       criticalTickets: loc.incidentTickets.filter((t) => t.severity === 'CRITICAL' && !['RESOLVED', 'CLOSED'].includes(t.status)).length,
-      installationAvgPct: loc.installationProgress.length
-        ? Math.round(loc.installationProgress.reduce((s, m) => s + m.percentage, 0) / loc.installationProgress.length)
-        : 0,
+      installationAvgPct: summarizeInstallation(loc.locationItems).average,
     }));
 
     return ok(data);
   }
 
-  async getAttendanceReport(locationId?: string) {
-    const where: any = {};
-    if (locationId) where.locationId = locationId;
-
-    const [logs, total] = await Promise.all([
-      this.prisma.attendanceLog.findMany({
-        where,
-        orderBy: [{ locationId: 'asc' }, { session: 'asc' }, { scanTime: 'asc' }],
-        include: { location: { select: { name: true, province: true } } },
-      }),
-      this.prisma.attendanceLog.count({ where }),
-    ]);
-
-    // Group by location + session
-    const grouped: Record<string, any> = {};
-    for (const log of logs) {
-      const key = `${log.locationId}-${log.session}`;
-      if (!grouped[key]) {
-        grouped[key] = {
-          locationId: log.locationId,
-          locationName: (log as any).location?.name,
-          session: log.session,
-          count: 0,
-          firstScan: log.scanTime,
-          lastScan: log.scanTime,
-        };
-      }
-      grouped[key].count++;
-      if (log.scanTime < grouped[key].firstScan) grouped[key].firstScan = log.scanTime;
-      if (log.scanTime > grouped[key].lastScan) grouped[key].lastScan = log.scanTime;
-    }
-
-    return ok({ total, bySession: Object.values(grouped), logs });
-  }
-
-  async getIncidentsReport() {
+  async getIncidentsReport(locationId?: string) {
     const tickets = await this.prisma.incidentTicket.findMany({
+      where: locationId ? { locationId } : {},
       orderBy: [{ severity: 'asc' }, { createdAt: 'desc' }],
       include: {
         location: { select: { name: true, province: true } },
@@ -99,8 +65,9 @@ export class ReportsService {
     return ok({ summary, tickets });
   }
 
-  async getLogisticsReport() {
+  async getLogisticsReport(locationId?: string) {
     const shipments = await this.prisma.logisticsShipment.findMany({
+      where: locationId ? { destinationLocationId: locationId } : {},
       orderBy: { createdAt: 'desc' },
       include: {
         destination: { select: { name: true, province: true } },
@@ -119,67 +86,65 @@ export class ReportsService {
     return ok({ summary, shipments });
   }
 
-  async getInstallationsReport() {
+  async getInstallationsReport(locationId?: string) {
     const locations = await this.prisma.location.findMany({
+      where: locationId ? { id: locationId } : {},
       select: {
         id: true,
         name: true,
         province: true,
         status: true,
-        installationProgress: { orderBy: { milestone: 'asc' } },
+        locationItems: { orderBy: { name: 'asc' } },
       },
       orderBy: [{ province: 'asc' }, { name: 'asc' }],
     });
 
     const data = locations.map((loc) => {
-      const milestones = loc.installationProgress;
-      const completed = milestones.filter((m) => m.percentage >= 100).length;
-      const avgPct = milestones.length
-        ? Math.round(milestones.reduce((s, m) => s + m.percentage, 0) / milestones.length)
-        : 0;
+      const items = loc.locationItems;
+      const summary = summarizeInstallation(items);
       return {
         locationId: loc.id,
         locationName: loc.name,
         province: loc.province,
         status: loc.status,
-        completedMilestones: completed,
-        totalMilestones: 4,
-        averagePercentage: avgPct,
-        milestones,
+        completedMilestones: summary.completed,
+        totalMilestones: summary.total,
+        averagePercentage: summary.average,
+        items,
       };
     });
 
     return ok(data);
   }
 
-  async getExecutiveDashboard() {
+  async getExecutiveDashboard(locationId?: string) {
     const [
       totalLocations,
       readyLocations,
       totalTickets,
       openTickets,
-      totalAttendance,
       totalShipments,
       receivedShipments,
       totalPersonnel,
     ] = await Promise.all([
-      this.prisma.location.count(),
-      this.prisma.location.count({ where: { status: 'READY' } }),
-      this.prisma.incidentTicket.count(),
-      this.prisma.incidentTicket.count({ where: { status: { notIn: ['RESOLVED', 'CLOSED'] } } }),
-      this.prisma.attendanceLog.count(),
-      this.prisma.logisticsShipment.count(),
-      this.prisma.logisticsShipment.count({ where: { status: 'RECEIVED' } }),
-      this.prisma.personnel.count(),
+      this.prisma.location.count({ where: locationId ? { id: locationId } : {} }),
+      this.prisma.location.count({ where: { ...(locationId ? { id: locationId } : {}), status: 'READY' } }),
+      this.prisma.incidentTicket.count({ where: locationId ? { locationId } : {} }),
+      this.prisma.incidentTicket.count({ where: { ...(locationId ? { locationId } : {}), status: { notIn: ['RESOLVED', 'CLOSED'] } } }),
+      this.prisma.logisticsShipment.count({ where: locationId ? { destinationLocationId: locationId } : {} }),
+      this.prisma.logisticsShipment.count({ where: { ...(locationId ? { destinationLocationId: locationId } : {}), status: 'RECEIVED' } }),
+      this.prisma.personnel.count({ where: locationId ? { locationId } : {} }),
     ]);
 
     const locationsByStatus = await this.prisma.location.groupBy({
       by: ['status'],
+      where: locationId ? { id: locationId } : {},
       _count: { id: true },
     });
 
     const locationsByProvince = await this.prisma.location.groupBy({
       by: ['province'],
+      where: locationId ? { id: locationId } : {},
       _count: { id: true },
       orderBy: { province: 'asc' },
     });
@@ -191,7 +156,6 @@ export class ReportsService {
         readinessRate: totalLocations ? Math.round((readyLocations / totalLocations) * 100) : 0,
         totalTickets,
         openTickets,
-        totalAttendance,
         totalShipments,
         receivedShipments,
         logisticsRate: totalShipments ? Math.round((receivedShipments / totalShipments) * 100) : 0,
@@ -205,8 +169,11 @@ export class ReportsService {
   async getAuditLog(query: { entityType?: string; userId?: string; page?: number; limit?: number }) {
     const { entityType, userId } = query;
     // Query string masuk sebagai string — koersi eksplisit untuk Prisma skip/take
-    const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 50;
+    const page = Number(query.page ?? 1);
+    const limit = Number(query.limit ?? 50);
+    if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(limit) || limit < 1 || limit > 1000) {
+      throw new BadRequestException('page harus bilangan bulat positif dan limit harus antara 1 dan 1000');
+    }
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -229,8 +196,9 @@ export class ReportsService {
 
   // Rekap berita acara: matriks lokasi × jenis BA dengan status approval —
   // memenuhi spesifikasi "laporan hasil upload berita acara".
-  async getBeritaAcaraReport() {
+  async getBeritaAcaraReport(locationId?: string) {
     const locations = await this.prisma.location.findMany({
+      where: locationId ? { id: locationId } : {},
       select: {
         id: true,
         name: true,

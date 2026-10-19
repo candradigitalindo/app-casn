@@ -3,7 +3,9 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
+import { EventsGateway } from '../events/events.gateway';
 import { InventoryCategory } from '@prisma/client';
 
 function categoryFromItemName(name: string): InventoryCategory {
@@ -52,7 +54,7 @@ const SHIPMENT_SELECT = {
 
 @Injectable()
 export class LogisticsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private events: EventsGateway) {}
 
   // ──────────────────────────────────────────────────────────
   // SHIPMENTS
@@ -91,9 +93,9 @@ export class LogisticsService {
   }
 
   async createShipment(dto: CreateShipmentDto, createdById: string) {
-    const shipmentNumber = `SHP-${Date.now()}`;
+    const shipmentNumber = `SHP-${Date.now()}-${randomUUID().slice(0, 8)}`;
 
-    return this.prisma.logisticsShipment.create({
+    const created = await this.prisma.logisticsShipment.create({
       data: {
         shipmentNumber,
         originWarehouseId: dto.originWarehouseId,
@@ -105,32 +107,38 @@ export class LogisticsService {
       },
       select: SHIPMENT_SELECT,
     });
+    this.events.emitShipmentUpdated(created.id, created);
+    return created;
   }
 
   async updateShipment(id: string, dto: UpdateShipmentDto) {
-    await this.findShipment(id);
+    const shipment = await this.findShipment(id);
 
     // Isi timestamp otomatis berdasarkan perubahan status
     const timestamps: Record<string, Date> = {};
-    if (dto.status === 'IN_TRANSIT') timestamps.shippedAt = new Date();
-    if (dto.status === 'ARRIVED') timestamps.arrivedAt = new Date();
-    if (dto.status === 'RECEIVED') timestamps.receivedAt = new Date();
+    if (dto.status === 'IN_TRANSIT' && !shipment.shippedAt) timestamps.shippedAt = new Date();
+    if (dto.status === 'ARRIVED' && !shipment.arrivedAt) timestamps.arrivedAt = new Date();
+    if (dto.status === 'RECEIVED' && !shipment.receivedAt) timestamps.receivedAt = new Date();
 
-    return this.prisma.logisticsShipment.update({
+    const updated = await this.prisma.logisticsShipment.update({
       where: { id },
       data: { ...dto, ...timestamps },
       select: SHIPMENT_SELECT,
     });
+    this.events.emitShipmentUpdated(id, updated);
+    return updated;
   }
 
   async deleteShipment(id: string) {
-    await this.findShipment(id);
+    const shipment = await this.findShipment(id);
     await this.prisma.logisticsShipment.delete({ where: { id } });
+    this.events.emitShipmentUpdated(id, null, shipment.destinationLocationId);
   }
 
-  async getShipmentSummary() {
+  async getShipmentSummary(locationId?: string) {
     const groups = await this.prisma.logisticsShipment.groupBy({
       by: ['status'],
+      where: locationId ? { destinationLocationId: locationId } : {},
       _count: { id: true },
     });
     const result: Record<string, number> = {
@@ -156,7 +164,7 @@ export class LogisticsService {
   // ──────────────────────────────────────────────────────────
 
   async findInventoryItems() {
-    // Auto-seed dari MasterItem (38 item standar BKN, Lampiran 2) saat
+    // Auto-seed dari MasterItem (38 item standar instansi penyelenggara) saat
     // pertama diakses — pola yang sama dengan auto-seed stages.
     const count = await this.prisma.inventoryItem.count();
     if (count === 0) {
@@ -214,6 +222,7 @@ export class LogisticsService {
     return this.prisma.inventoryChecklist.upsert({
       where: { locationId_itemId: { locationId: dto.locationId, itemId: dto.itemId } },
       update: {
+        expectedQty: dto.expectedQty,
         receivedQty: dto.receivedQty,
         damagedQty: dto.damagedQty,
         missingQty: dto.missingQty,
@@ -245,11 +254,11 @@ export class LogisticsService {
   // BUFFER STOCK
   // ──────────────────────────────────────────────────────────
 
-  async getBufferStock() {
+  async getBufferStock(locationId?: string) {
     // Hitung total penerimaan vs ekspektasi per item di seluruh lokasi
     const items = await this.prisma.inventoryItem.findMany({
       include: {
-        checklists: { select: { expectedQty: true, receivedQty: true, damagedQty: true } },
+        checklists: { where: locationId ? { locationId } : {}, select: { expectedQty: true, receivedQty: true, damagedQty: true } },
       },
     });
 

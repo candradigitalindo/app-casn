@@ -10,13 +10,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+  SearchableSelect, type SearchableSelectOption,
+} from "@/components/ui/searchable-select";
 import {
   Plus, Search, Pencil, Trash2, UserCheck, UserX, Loader2, Users, ShieldCheck, MapPin,
 } from "lucide-react";
 import {
-  useUsers, useCreateUser, useUpdateUser, useDeleteUser, useToggleUserActive, useLocations,
+  useUsers, useCreateUser, useUpdateUser, useDeleteUser, useToggleUserActive, useLocations, usePermissions,
 } from "@/lib/hooks";
 import { CreateUserDto } from "@/lib/api/users";
 import type { User } from "@/types/models";
@@ -35,6 +35,10 @@ const ROLE_COLORS: Record<UserRole, string> = {
   [UserRole.PPK]:                  "bg-lime-100 text-lime-700",
   [UserRole.INSPEKTORAT]:          "bg-rose-100 text-rose-700",
 };
+
+const ROLE_OPTIONS: SearchableSelectOption[] = Object.values(UserRole).map((r) => ({
+  value: r, label: UserRoleLabels[r],
+}));
 
 const EMPTY_FORM: CreateUserDto = {
   name: "", email: "", password: "", role: UserRole.COORDINATOR, phone: "", locationId: "", instansi: "",
@@ -84,10 +88,14 @@ function UserDialog({
       locationId: form.locationId || undefined,
       instansi: form.instansi || undefined,
     };
+    // Role pengawasan instansi tidak terikat lokasi — lepaskan locationId lama
+    // agar scoping per-lokasi tidak menempel setelah ganti role.
+    const isBknRole = [UserRole.SUPERVISOR, UserRole.PIMPINAN, UserRole.PPK, UserRole.INSPEKTORAT].includes(normalized.role);
     if (isEdit && user) {
       const payload: Parameters<typeof update.mutate>[0]["data"] = {
         name: normalized.name, email: normalized.email, role: normalized.role,
-        phone: normalized.phone, locationId: normalized.locationId,
+        phone: normalized.phone,
+        locationId: isBknRole ? null : normalized.locationId,
         instansi: normalized.instansi,
         ...(changePassword && form.password ? { password: form.password } : {}),
       };
@@ -108,16 +116,24 @@ function UserDialog({
     [UserRole.TECHNICAL_ELECTRICAL]: "Tenaga teknis elektrikal, akses instalasi.",
     [UserRole.TECHNICAL_SARPRAS]: "Tenaga teknis sarana prasarana, akses instalasi.",
     [UserRole.REGISTRAR]: "Petugas registrasi peserta di titik lokasi.",
-    [UserRole.SUPERVISOR]: "Pengawas lapangan BKN — menyetujui/menolak berita acara, akses laporan dan monitoring.",
-    [UserRole.PIMPINAN]: "Pimpinan BKN — akses dashboard dan laporan (hanya lihat).",
+    [UserRole.SUPERVISOR]: "Pengawas lapangan instansi — menyetujui/menolak berita acara, akses laporan dan monitoring.",
+    [UserRole.PIMPINAN]: "Pimpinan instansi — akses dashboard dan laporan (hanya lihat).",
     [UserRole.PPK]: "Pejabat Pembuat Komitmen — akses dashboard dan laporan (hanya lihat).",
-    [UserRole.INSPEKTORAT]: "Inspektorat BKN — akses dashboard dan laporan untuk audit (hanya lihat).",
+    [UserRole.INSPEKTORAT]: "Inspektorat instansi — akses dashboard dan laporan untuk audit (hanya lihat).",
   };
 
   // Daftar lokasi untuk dropdown penugasan (admin tidak ter-scope)
   const { data: locResponse } = useLocations({});
   const locationOptions = locResponse?.data ?? [];
   const NO_LOCATION = "__none__";
+
+  const locationSelectOptions: SearchableSelectOption[] = useMemo(
+    () => [
+      { value: NO_LOCATION, label: "Tanpa lokasi — akses seluruh data" },
+      ...locationOptions.map((l) => ({ value: l.id, label: l.name, keywords: l.code })),
+    ],
+    [locationOptions]
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -178,16 +194,13 @@ function UserDialog({
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Hak Akses &amp; Penugasan</p>
             <div className="space-y-1.5">
               <Label>Role <span className="text-destructive">*</span></Label>
-              <Select value={form.role} onValueChange={(v) => set("role", v as UserRole)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>{UserRoleLabels[form.role]}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.values(UserRole).map((r) => (
-                    <SelectItem key={r} value={r}>{UserRoleLabels[r]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={ROLE_OPTIONS}
+                value={form.role}
+                onValueChange={(v) => v && set("role", v as UserRole)}
+                searchPlaceholder="Cari role..."
+                className="w-full"
+              />
               <p className="text-[11px] text-muted-foreground">{ROLE_DESCRIPTIONS[form.role]}</p>
             </div>
 
@@ -204,37 +217,34 @@ function UserDialog({
             ) : (
               <div className="space-y-1.5">
                 <Label>Titik Lokasi <span className="text-muted-foreground font-normal">(opsional)</span></Label>
-                <Select
+                <SearchableSelect
+                  options={locationSelectOptions}
                   value={form.locationId || NO_LOCATION}
-                  onValueChange={(v) => set("locationId", v === NO_LOCATION ? "" : (v ?? ""))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue>
-                      {form.locationId ? (
-                        <span className="flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                          {locationOptions.find((l) => l.id === form.locationId)?.name ?? form.locationId}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Tanpa lokasi — akses seluruh data</span>
-                      )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_LOCATION}>
-                      <span className="text-muted-foreground">Tanpa lokasi — akses seluruh data</span>
-                    </SelectItem>
-                    {locationOptions.map((l) => (
-                      <SelectItem key={l.id} value={l.id}>
-                        <span className="flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                          {l.name}
-                          <span className="text-[10px] font-mono text-muted-foreground">{l.code}</span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onValueChange={(v) => set("locationId", v === NO_LOCATION ? "" : v)}
+                  searchPlaceholder="Cari lokasi..."
+                  className="w-full"
+                  renderOption={(o) =>
+                    o.value === NO_LOCATION ? (
+                      <span className="text-muted-foreground">{o.label}</span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                        {o.label}
+                        <span className="text-[10px] font-mono text-muted-foreground">{o.keywords}</span>
+                      </span>
+                    )
+                  }
+                  renderValue={(o) =>
+                    o.value === NO_LOCATION ? (
+                      <span className="text-muted-foreground">{o.label}</span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                        {o.label}
+                      </span>
+                    )
+                  }
+                />
                 <p className="text-[11px] text-muted-foreground">
                   Pengguna yang terikat ke satu titik lokasi hanya dapat melihat data lokasi tersebut.
                 </p>
@@ -298,6 +308,7 @@ export default function UsersPage() {
   const [editUser, setEditUser] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
 
+  const { isSuperAdmin } = usePermissions();
   const { data, isLoading } = useUsers();
   const toggleActive = useToggleUserActive();
 
@@ -321,6 +332,20 @@ export default function UsersPage() {
     allUsers.forEach((u) => { map[u.role] = (map[u.role] ?? 0) + 1; });
     return map;
   }, [allUsers]);
+
+  // Manajemen pengguna khusus Super Admin — sidebar menyembunyikan link,
+  // tapi halaman tetap bisa dibuka langsung via URL.
+  if (!isSuperAdmin) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center text-center gap-2 min-h-[60vh]">
+        <ShieldCheck className="h-10 w-10 text-muted-foreground" />
+        <h1 className="text-lg font-semibold">Akses Ditolak</h1>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          Halaman manajemen pengguna hanya dapat diakses oleh Super Admin.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">

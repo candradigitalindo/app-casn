@@ -91,7 +91,7 @@ export enum StageStatus {
   COMPLETED = 'COMPLETED',
 }
 
-// Kategori dokumentasi foto/video (spesifikasi BKN: barang vs sesi ujian)
+// Kategori dokumentasi foto/video (spesifikasi instansi penyelenggara: barang vs sesi ujian)
 export enum StagePhotoCategory {
   BARANG = 'BARANG',
   SESI_UJIAN = 'SESI_UJIAN',
@@ -151,7 +151,7 @@ export const UserRoleLabels: Record<UserRole, string> = {
   [UserRole.TECHNICAL_SARPRAS]: 'Tenaga Teknis Sarpras',
   [UserRole.REGISTRAR]: 'Petugas Registrasi',
   [UserRole.SUPERVISOR]: 'Pengawas Lapangan',
-  [UserRole.PIMPINAN]: 'Pimpinan BKN',
+  [UserRole.PIMPINAN]: 'Pimpinan Instansi',
   [UserRole.PPK]: 'PPK',
   [UserRole.INSPEKTORAT]: 'Inspektorat',
 };
@@ -316,7 +316,7 @@ export enum PersonnelRole {
   TENAGA_IT = 'TENAGA_IT',
   ELEKTRIKAL = 'ELEKTRIKAL',
   TENAGA_SARPRAS = 'TENAGA_SARPRAS',
-  PENGAWAS_BKN = 'PENGAWAS_BKN',
+  PENGAWAS_INSTANSI = 'PENGAWAS_INSTANSI',
 }
 
 export const PersonnelRoleLabels: Record<PersonnelRole, string> = {
@@ -324,7 +324,7 @@ export const PersonnelRoleLabels: Record<PersonnelRole, string> = {
   [PersonnelRole.TENAGA_IT]: 'Tenaga IT',
   [PersonnelRole.ELEKTRIKAL]: 'Elektrikal',
   [PersonnelRole.TENAGA_SARPRAS]: 'Tenaga Sarpras',
-  [PersonnelRole.PENGAWAS_BKN]: 'Pengawas Lapangan BKN',
+  [PersonnelRole.PENGAWAS_INSTANSI]: 'Pengawas Instansi',
 };
 
 export const PersonnelRoleColors: Record<PersonnelRole, string> = {
@@ -332,16 +332,35 @@ export const PersonnelRoleColors: Record<PersonnelRole, string> = {
   [PersonnelRole.TENAGA_IT]: 'bg-blue-100 text-blue-700 border-blue-200',
   [PersonnelRole.ELEKTRIKAL]: 'bg-amber-100 text-amber-700 border-amber-200',
   [PersonnelRole.TENAGA_SARPRAS]: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  [PersonnelRole.PENGAWAS_BKN]: 'bg-rose-100 text-rose-700 border-rose-200',
+  [PersonnelRole.PENGAWAS_INSTANSI]: 'bg-rose-100 text-rose-700 border-rose-200',
 };
 
-// Kebutuhan SDM berdasarkan kapasitas (dari dokumen BKN)
-export const STAFF_REQUIREMENTS: Record<number, Record<PersonnelRole, number>> = {
-  100: { [PersonnelRole.PENGAWAS_BKN]: 1, [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 1, [PersonnelRole.ELEKTRIKAL]: 1, [PersonnelRole.TENAGA_SARPRAS]: 1 },
-  200: { [PersonnelRole.PENGAWAS_BKN]: 1, [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 2, [PersonnelRole.ELEKTRIKAL]: 2, [PersonnelRole.TENAGA_SARPRAS]: 1 },
-  300: { [PersonnelRole.PENGAWAS_BKN]: 1, [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 3, [PersonnelRole.ELEKTRIKAL]: 3, [PersonnelRole.TENAGA_SARPRAS]: 2 },
-  400: { [PersonnelRole.PENGAWAS_BKN]: 1, [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 4, [PersonnelRole.ELEKTRIKAL]: 4, [PersonnelRole.TENAGA_SARPRAS]: 3 },
-  500: { [PersonnelRole.PENGAWAS_BKN]: 1, [PersonnelRole.KOORDINATOR]: 1, [PersonnelRole.TENAGA_IT]: 5, [PersonnelRole.ELEKTRIKAL]: 5, [PersonnelRole.TENAGA_SARPRAS]: 3 },
+// Kebutuhan SDM per tier kapasitas kini bersumber dari master data backend
+// (GET /api/v1/master-data/personnel-requirements — huruf D.4.e Kepsesma 240/2026).
+
+export enum Gender {
+  LAKI_LAKI = 'LAKI_LAKI',
+  PEREMPUAN = 'PEREMPUAN',
+}
+
+export const GenderLabels: Record<Gender, string> = {
+  [Gender.LAKI_LAKI]: 'Laki-laki',
+  [Gender.PEREMPUAN]: 'Perempuan',
+};
+
+// Minimal SMA sederajat sesuai Kepsesma 240/2026 huruf G.1 poin 8
+export enum EducationLevel {
+  SMA_SMK = 'SMA_SMK',
+  D3 = 'D3',
+  S1 = 'S1',
+  S2 = 'S2',
+}
+
+export const EducationLevelLabels: Record<EducationLevel, string> = {
+  [EducationLevel.SMA_SMK]: 'SMA/SMK Sederajat',
+  [EducationLevel.D3]: 'D3',
+  [EducationLevel.S1]: 'S1/D4',
+  [EducationLevel.S2]: 'S2',
 };
 
 // ============================================

@@ -52,3 +52,12 @@ export class UpdateCapacityDto {
   @Type(() => Number)
   capacity: number;
 }
+
+export class SeedStandardItemsDto {
+  @ApiPropertyOptional({ example: 200 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  capacity?: number;
+}

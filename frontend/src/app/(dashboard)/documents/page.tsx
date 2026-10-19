@@ -11,14 +11,15 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+  SearchableSelect, type SearchableSelectOption,
+} from "@/components/ui/searchable-select";
 import {
   ChevronDown, ChevronUp, FileText, Upload, Trash2,
   Download, Search, Loader2, FolderOpen, MapPin, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocations, useDocuments, useCreateDocument, useDeleteDocument, usePermissions } from "@/lib/hooks";
+import { formatDateShort, readFileAsDataUrl } from "@/lib/format";
 import type { Location, DocumentEntry } from "@/types/models";
 import {
   DocumentCategory, DocumentCategoryLabels, DocumentCategoryColors,
@@ -44,6 +45,20 @@ function fileKind(url: string): "image" | "pdf" | "video" | "other" {
   return "other";
 }
 import { CreateDocumentDto } from "@/lib/api/documents";
+
+const CATEGORY_OPTIONS: SearchableSelectOption[] = Object.values(DocumentCategory).map((c) => ({
+  value: c, label: DocumentCategoryLabels[c],
+}));
+
+const CATEGORY_FILTER_OPTIONS: SearchableSelectOption[] = [
+  { value: "ALL", label: "Semua Kategori" },
+  ...CATEGORY_OPTIONS,
+  // Kategori dokumentasi tahapan (StagePhoto) ikut tampil di daftar,
+  // jadi harus bisa difilter juga
+  ...Object.entries(StagePhotoCategoryLabels).map(([value, label]) => ({
+    value, label: `Dokumentasi: ${label}`,
+  })),
+];
 
 const EMPTY_FORM: Omit<CreateDocumentDto, "locationId" | "uploadedBy"> = {
   category: DocumentCategory.LAINNYA,
@@ -73,24 +88,18 @@ function UploadDocumentDialog({
     setForm({ ...EMPTY_FORM });
   }
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Ukuran file maksimal 10 MB");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((f) => ({
-        ...f,
-        fileName: file.name,
-        fileUrl: reader.result as string,
-        fileSizeKb: Math.round(file.size / 1024),
-        name: f.name || file.name.replace(/\.[^.]+$/, ""),
-      }));
-    };
-    reader.readAsDataURL(file);
+    const dataUrl = await readFileAsDataUrl(file);
+    if (!dataUrl) return;
+    setForm((f) => ({
+      ...f,
+      fileName: file.name,
+      fileUrl: dataUrl,
+      fileSizeKb: Math.round(file.size / 1024),
+      name: f.name || file.name.replace(/\.[^.]+$/, ""),
+    }));
   }
 
   function handleSubmit() {
@@ -138,17 +147,12 @@ function UploadDocumentDialog({
           {/* Kategori */}
           <div className="space-y-1.5">
             <Label>Kategori</Label>
-            <Select
+            <SearchableSelect
+              options={CATEGORY_OPTIONS}
               value={form.category}
-              onValueChange={(v) => setForm((f) => ({ ...f, category: v as DocumentCategory }))}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.values(DocumentCategory).map((c) => (
-                  <SelectItem key={c} value={c}>{DocumentCategoryLabels[c]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onValueChange={(v) => v && setForm((f) => ({ ...f, category: v as DocumentCategory }))}
+              searchPlaceholder="Cari kategori..."
+            />
           </div>
 
           {/* Nama dokumen */}
@@ -233,7 +237,7 @@ function DocumentRow({
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <span className="text-[11px] text-muted-foreground hidden sm:block">
-          {new Date(doc.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+          {formatDateShort(doc.createdAt)}
         </span>
         <Button
           size="icon"
@@ -484,17 +488,13 @@ export default function DocumentsPage() {
             className="pl-9"
           />
         </div>
-        <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v ?? "ALL")}>
-          <SelectTrigger className="sm:w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">Semua Kategori</SelectItem>
-            {Object.values(DocumentCategory).map((c) => (
-              <SelectItem key={c} value={c}>{DocumentCategoryLabels[c]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={CATEGORY_FILTER_OPTIONS}
+          value={categoryFilter}
+          onValueChange={(v) => setCategoryFilter(v || "ALL")}
+          searchPlaceholder="Cari kategori..."
+          className="sm:w-56"
+        />
       </div>
 
       {/* Location cards */}

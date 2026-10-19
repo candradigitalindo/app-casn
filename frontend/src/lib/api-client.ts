@@ -1,4 +1,5 @@
-import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/lib/stores/auth';
 
 // API Response Types
@@ -79,8 +80,12 @@ class ApiClient {
       return Promise.reject(error);
     }
 
-    // Handle 401 Unauthorized - Try refresh token
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Handle 401 Unauthorized - Try refresh token.
+    // Request refresh sendiri tidak boleh ikut jalur ini — kalau ikut, ia akan
+    // menunggu refreshTokenPromise miliknya sendiri dan menggantung selamanya.
+    const isAuthCall = /\/auth\/(login|refresh|logout)(?:[/?]|$)/.test(originalRequest.url ?? '');
+    const session = useAuthStore.getState();
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthCall && session.isAuthenticated) {
       originalRequest._retry = true;
 
       try {
@@ -91,11 +96,14 @@ class ApiClient {
         return this.client(originalRequest);
       } catch (refreshError) {
         // Refresh failed, logout user
-        useAuthStore.getState().logout();
+        const current = useAuthStore.getState();
+        if (current.user?.id === session.user?.id && current.token === session.token) {
+          current.logout();
 
         // Redirect to login if in browser
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
         }
 
         return Promise.reject(refreshError);
@@ -135,17 +143,22 @@ class ApiClient {
   }
 
   private async performTokenRefresh(): Promise<string> {
+    const session = useAuthStore.getState();
     try {
       const response = await this.client.post('/api/v1/auth/refresh', {}, {
         withCredentials: true
       });
 
       const newToken = response.data.data.tokens.accessToken;
+      const current = useAuthStore.getState();
+      if (!current.isAuthenticated || current.user?.id !== session.user?.id || current.token !== session.token) {
+        throw new Error('Sesi berubah saat memperbarui token');
+      }
 
       useAuthStore.getState().setToken(newToken);
 
       return newToken;
-    } catch (error) {
+    } catch {
       throw new Error('Failed to refresh token');
     }
   }
@@ -157,7 +170,6 @@ class ApiClient {
 
   private logError(apiError: ApiError, originalError: AxiosError): void {
     // In production, send to monitoring service (Sentry, etc.)
-    // eslint-disable-next-line no-console
     console.error('[API Error]', {
       ...apiError,
       url: originalError.config?.url,
@@ -171,18 +183,18 @@ class ApiClient {
     return response.data;
   }
 
-  async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+  async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     const response = await this.client.post<ApiResponse<T>>(url, data, config);
     return response.data;
   }
 
-  async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    const response = await this.client.put<ApiResponse<T>>(url, data, config);
+  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    const response = await this.client.patch<ApiResponse<T>>(url, data, config);
     return response.data;
   }
 
-  async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    const response = await this.client.patch<ApiResponse<T>>(url, data, config);
+  async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    const response = await this.client.put<ApiResponse<T>>(url, data, config);
     return response.data;
   }
 
@@ -226,22 +238,20 @@ export const apiClient = new ApiClient();
 // Export types
 export type { ApiResponse, ApiError };
 
-  // Export error handler for React Query
-  export const handleQueryError = (error: ApiError) => {
-    // eslint-disable-next-line no-console
-    console.error('[Query Error]', error);
+// Export error handler for React Query
+export const handleQueryError = (error: ApiError) => {
+  console.error('[Query Error]', error);
 
-  // Show toast notification (implement with sonner/react-hot-toast)
   if (error.statusCode >= 500) {
-    // Toast error('Server error. Please try again later.');
+    toast.error('Terjadi kesalahan server. Coba lagi beberapa saat.');
   } else if (error.statusCode === 401) {
-    // Toast info('Session expired. Please login again.');
+    toast.info('Sesi berakhir. Silakan login kembali.');
   } else if (error.statusCode === 403) {
-    // Toast error('You do not have permission to perform this action.');
+    toast.error('Anda tidak memiliki izin untuk melakukan aksi ini.');
   } else if (error.statusCode === 404) {
-    // Toast error('Resource not found.');
+    toast.error('Data tidak ditemukan.');
   } else {
-    // Toast error(error.message || 'An error occurred');
+    toast.error(error.message || 'Terjadi kesalahan.');
   }
 };
 

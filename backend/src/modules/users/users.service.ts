@@ -78,9 +78,15 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto) {
     await this.findOne(id); // throws 404 if not found
 
+    const { password, ...rest } = dto;
+    const data: Record<string, any> = { ...rest };
+    if (password) {
+      data.password = await bcrypt.hash(password, 12);
+    }
+
     const user = await this.prisma.user.update({
       where: { id },
-      data: dto,
+      data,
       select: SAFE_SELECT,
     });
 

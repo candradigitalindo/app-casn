@@ -1,4 +1,4 @@
-import { apiClient, ApiResponse } from '../api-client';
+import { apiClient } from '../api-client';
 import type { IncidentTicket } from '@/types/models';
 import { TicketStatus, TicketSeverity } from '@/types/enums';
 
@@ -27,12 +27,6 @@ export interface TicketQuery {
   limit?: number;
 }
 
-export interface SLAOverdueResponse {
-  overdue: number;
-  critical: number;
-  warning: number;
-}
-
 // API Service
 export const incidentsApi = {
   // Get all tickets with filtering
@@ -41,19 +35,9 @@ export const incidentsApi = {
       params: query,
     }),
 
-  // Get ticket detail
-  getTicket: (id: string) =>
-    apiClient.get<IncidentTicket>(`/api/v1/incidents/tickets/${id}`),
-
   // Create new ticket
   createTicket: (data: CreateTicketDto) =>
     apiClient.post<IncidentTicket>('/api/v1/incidents/tickets', data),
-
-  // Assign ticket to technician
-  assignTicket: (id: string, technicianId: string) =>
-    apiClient.patch<IncidentTicket>(`/api/v1/incidents/tickets/${id}/assign`, {
-      assignedTo: technicianId,
-    }),
 
   // Update ticket status
   updateTicketStatus: (id: string, data: UpdateTicketDto) =>
@@ -63,23 +47,7 @@ export const incidentsApi = {
   getOverdueTickets: () =>
     apiClient.get<IncidentTicket[]>('/api/v1/incidents/tickets/sla/overdue'),
 
-  // Get SLA stats
-  getSLAStats: (): Promise<ApiResponse<SLAOverdueResponse>> =>
-    apiClient.get('/api/v1/incidents/tickets/sla/stats'),
-
-  // Add note to ticket
-  addTicketNote: (id: string, note: string) =>
-    apiClient.post<IncidentTicket>(`/api/v1/incidents/tickets/${id}/notes`, { note }),
-
-  // Upload photo for ticket
-  uploadTicketPhoto: (id: string, file: File) =>
-    apiClient.uploadFile<{ url: string }>(`/api/v1/incidents/tickets/${id}/photos`, file),
-
-  // Escalate ticket
-  escalateTicket: (id: string, reason: string) =>
-    apiClient.post<IncidentTicket>(`/api/v1/incidents/tickets/${id}/escalate`, { reason }),
-
   // Delete ticket
   deleteTicket: (id: string) =>
     apiClient.delete<null>(`/api/v1/incidents/tickets/${id}`),
-  };
+};

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { personnelApi, CreatePersonnelDto, UpsertAttendanceDto } from '@/lib/api/personnel';
-import type { Personnel } from '@/types/models';
+import {
+  personnelApi, CreatePersonnelDto, UpdatePersonnelDto, PersonnelQuery, UpsertAttendanceDto,
+} from '@/lib/api/personnel';
 import { handleQueryError } from '@/lib/api-client';
 
 export const personnelKeys = {
@@ -15,6 +16,34 @@ export function usePersonnel(locationId: string) {
     queryFn: () => personnelApi.getByLocation(locationId),
     enabled: !!locationId,
     staleTime: 30 * 1000,
+  });
+}
+
+// Master Data Tenaga Teknis (lintas lokasi, dengan filter)
+export function useAllPersonnel(query: PersonnelQuery = {}) {
+  return useQuery({
+    queryKey: [...personnelKeys.all, 'master', query] as const,
+    queryFn: () => personnelApi.getAll(query),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useSavePersonnel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id?: string; data: CreatePersonnelDto | UpdatePersonnelDto }) =>
+      id ? personnelApi.update(id, data) : personnelApi.create(data as CreatePersonnelDto),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: personnelKeys.all }),
+    onError: handleQueryError,
+  });
+}
+
+export function useDeletePersonnelGlobal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => personnelApi.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: personnelKeys.all }),
+    onError: handleQueryError,
   });
 }
 
@@ -48,7 +77,7 @@ export function useCreatePersonnel(locationId: string) {
 export function useUpdatePersonnel(locationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Personnel> }) => personnelApi.update(id, data),
+    mutationFn: ({ id, data }: { id: string; data: UpdatePersonnelDto }) => personnelApi.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: personnelKeys.location(locationId) }),
     onError: handleQueryError,
   });

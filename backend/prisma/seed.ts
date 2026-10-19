@@ -12,17 +12,17 @@ async function main() {
   const PASSWORD = 'andalan123';
 
   const users = [
-    { email: 'admin@nbp.co.id',     name: 'Super Admin',            role: UserRole.SUPER_ADMIN,         instansi: 'BKN Pusat' },
+    { email: 'admin@nbp.co.id',     name: 'Super Admin',            role: UserRole.SUPER_ADMIN,         instansi: 'Instansi Pusat' },
     { email: 'logistik@nbp.co.id',  name: 'Tim Logistik',           role: UserRole.LOGISTICS,           instansi: 'Andalan Teknologi' },
     { email: 'korlok@nbp.co.id',    name: 'Koordinator Lokasi',     role: UserRole.COORDINATOR,         instansi: 'Andalan Teknologi' },
     { email: 'it@nbp.co.id',        name: 'Tenaga Teknis IT',       role: UserRole.TECHNICAL_IT,        instansi: 'Andalan Teknologi' },
     { email: 'listrik@nbp.co.id',   name: 'Teknisi Elektrikal',     role: UserRole.TECHNICAL_ELECTRICAL,instansi: 'Andalan Teknologi' },
     { email: 'sarpras@nbp.co.id',   name: 'Teknisi Sarpras',        role: UserRole.TECHNICAL_SARPRAS,   instansi: 'Andalan Teknologi' },
-    { email: 'registrasi@nbp.co.id',name: 'Petugas Registrasi',     role: UserRole.REGISTRAR,           instansi: 'BKN Daerah' },
-    { email: 'pengawas@nbp.co.id',  name: 'Pengawas',               role: UserRole.SUPERVISOR,          instansi: 'BKN Daerah' },
-    { email: 'pimpinan@nbp.co.id',  name: 'Pimpinan BKN',           role: UserRole.PIMPINAN,            instansi: 'BKN Pusat' },
-    { email: 'ppk@nbp.co.id',       name: 'PPK',                    role: UserRole.PPK,                 instansi: 'BKN Pusat' },
-    { email: 'inspektorat@nbp.co.id', name: 'Inspektorat',          role: UserRole.INSPEKTORAT,         instansi: 'BKN Pusat' },
+    { email: 'registrasi@nbp.co.id',name: 'Petugas Registrasi',     role: UserRole.REGISTRAR,           instansi: 'Instansi Daerah' },
+    { email: 'pengawas@nbp.co.id',  name: 'Pengawas',               role: UserRole.SUPERVISOR,          instansi: 'Instansi Daerah' },
+    { email: 'pimpinan@nbp.co.id',  name: 'Pimpinan Instansi',           role: UserRole.PIMPINAN,            instansi: 'Instansi Pusat' },
+    { email: 'ppk@nbp.co.id',       name: 'PPK',                    role: UserRole.PPK,                 instansi: 'Instansi Pusat' },
+    { email: 'inspektorat@nbp.co.id', name: 'Inspektorat',          role: UserRole.INSPEKTORAT,         instansi: 'Instansi Pusat' },
   ];
 
   for (const u of users) {
@@ -42,7 +42,7 @@ async function main() {
   // ── Lokasi demo (sinkron dengan frontend mock-data.ts) ─────────────────────
   const koordinator = await prisma.user.findUnique({ where: { email: 'korlok@nbp.co.id' } });
 
-  // Kapasitas wajib mengikuti tier standar BKN: 100 / 200 / 300 / 400 / 500
+  // Kapasitas wajib mengikuti tier standar instansi penyelenggara: 100 / 200 / 300 / 400 / 500
   // (peserta per sesi) agar pemetaan item & tenaga teknis tepat.
   const locations = [
     { code: 'JKT-001', name: 'Universitas Indonesia - Depok', province: 'DKI Jakarta', city: 'Jakarta Selatan', address: 'Jl. Margonda Raya, Depok', latitude: -6.3608, longitude: 106.8272, status: 'READY', capacity: 500 },
@@ -70,60 +70,66 @@ async function main() {
   }
   console.log(`✅ ${locations.length} lokasi demo dibuat`);
 
-  // ── Master data: 38 item standar (Lampiran 2 Dok. Pengumuman BKN
-  //    No 113/D23/DPPP/04/2026). Kuantitas per tier kapasitas 100–500
-  //    peserta/sesi; nilai default — dapat disesuaikan admin via DB.
-  //    S = SEWA, M = MILIK_SENDIRI (default dokumen: mayoritas sewa).
-  type MI = [no: number, name: string, unit: string, q100: number, q200: number, q300: number, q400: number, q500: number];
+  // ── Master data: 38 item standar sesuai Lampiran E Kepsesma BKN
+  //    Nomor 240 Tahun 2026 (mencabut Kepsesma 62/2024 & 85/2023).
+  //    Kuantitas per tier kapasitas 100–500 peserta/sesi, satuan mengikuti
+  //    dokumen (m2 untuk tenda, paket untuk ATK). Dapat disesuaikan admin
+  //    via menu Master Data → Barang Sarpras bila terbit ketetapan baru.
+  type MI = [no: number, name: string, unit: string, q100: number, q200: number, q300: number, q400: number, q500: number, notes?: string];
   const masterItems: MI[] = [
-    [1,  'Laptop client untuk peserta ujian termasuk jaringan LAN dan elektrikal', 'unit', 110, 220, 330, 440, 550],
-    [2,  'UPS untuk router/switch hub', 'unit', 2, 3, 4, 5, 6],
-    [3,  'UPS untuk modem internet dan switch', 'unit', 2, 2, 3, 3, 4],
-    [4,  'Laptop client untuk registrasi peserta termasuk jaringan LAN dan elektrikal', 'unit', 2, 4, 6, 8, 10],
-    [5,  'Metal Detector', 'unit', 2, 2, 3, 4, 4],
-    [6,  'Webcam eksternal include tripod untuk registrasi peserta', 'unit', 2, 4, 6, 8, 10],
-    [7,  'LED ring light include tripod untuk registrasi', 'unit', 2, 4, 6, 8, 10],
-    [8,  'Barcode scanner untuk registrasi peserta', 'unit', 2, 4, 6, 8, 10],
-    [9,  'Laptop client untuk monitoring ruang ujian termasuk jaringan LAN dan elektrikal', 'unit', 1, 2, 3, 4, 5],
-    [10, 'Webcam eksternal include tripod untuk monitoring ruang ujian', 'unit', 1, 2, 3, 4, 5],
-    [11, 'Laptop untuk admin termasuk jaringan LAN dan elektrikal', 'unit', 2, 2, 3, 3, 4],
-    [12, 'Meja cover untuk penerimaan dan pengambilan tempat penitipan barang', 'unit', 2, 4, 6, 8, 10],
-    [13, 'Kursi susun tanpa cover untuk penerimaan dan pengambilan tempat penitipan barang', 'unit', 4, 8, 12, 16, 20],
-    [14, 'Container box', 'unit', 10, 20, 30, 40, 50],
-    [15, 'Printer termasuk toner/tinta panitia ruang ujian', 'unit', 1, 2, 3, 4, 5],
+    [1,  'Laptop client untuk peserta ujian termasuk jaringan LAN dan elektrikal', 'unit', 100, 200, 300, 400, 500, 'Wajib menyediakan laptop cadangan 5% (fitur touchscreen) di tiap titik lokasi — di luar kuantitas tayang'],
+    [2,  'UPS untuk router/switch hub', 'unit', 5, 10, 15, 20, 25, 'Minimal 900 VA'],
+    [3,  'UPS untuk modem internet dan switch', 'unit', 2, 2, 2, 2, 2, 'Minimal 2.000 VA'],
+    [4,  'Laptop client untuk registrasi peserta termasuk jaringan LAN dan elektrikal', 'unit', 3, 5, 8, 10, 13],
+    [5,  'Metal Detector', 'unit', 2, 2, 2, 2, 2, 'Portable (hand-held), Garret atau sejenisnya'],
+    [6,  'Webcam eksternal include tripod untuk registrasi peserta', 'unit', 3, 5, 8, 10, 13, 'Minimal HD 720p/30fps, tripod min 1.500 mm'],
+    [7,  'LED ring light include tripod untuk registrasi', 'unit', 3, 5, 8, 10, 13, 'Diameter min 26 cm, tripod min 2 m'],
+    [8,  'Barcode scanner untuk registrasi peserta', 'unit', 3, 5, 8, 10, 13, 'Minimal 2D, interface USB'],
+    [9,  'Laptop client untuk monitoring ruang ujian termasuk jaringan LAN dan elektrikal', 'unit', 2, 2, 2, 2, 2],
+    [10, 'Webcam eksternal include tripod untuk monitoring ruang ujian', 'unit', 2, 2, 2, 2, 2, 'Minimal HD 720p/30fps, tripod min 1.500 mm'],
+    [11, 'Laptop untuk admin termasuk jaringan LAN dan elektrikal', 'unit', 1, 1, 1, 1, 1],
+    [12, 'Meja cover untuk penerimaan dan pengambilan tempat penitipan barang', 'unit', 6, 6, 6, 6, 6],
+    [13, 'Kursi susun tanpa cover untuk penerimaan dan pengambilan tempat penitipan barang', 'unit', 6, 6, 6, 6, 6],
+    [14, 'Container box', 'unit', 14, 28, 40, 54, 68, 'Bahan plastik, min 150 liter, pengait pada tutup'],
+    [15, 'Printer termasuk toner/tinta panitia ruang ujian', 'unit', 1, 1, 1, 1, 1, 'Kapasitas min 50 sheet, kertas up to F4, 600x600 dpi'],
     [16, 'Laptop untuk LCD Projector termasuk elektrikal', 'unit', 1, 2, 3, 4, 5],
-    [17, 'LCD Projector termasuk screen untuk ruang ujian min 3000 lumens', 'unit', 1, 2, 3, 4, 5],
-    [18, 'CCTV termasuk display dan media penyimpanan', 'set', 1, 2, 2, 3, 3],
-    [19, 'Hardisk 2 TB', 'unit', 1, 2, 2, 3, 3],
-    [20, 'TV LCD termasuk standing bracket, elektrikal, dan flashdisk min 2GB', 'unit', 1, 2, 2, 3, 3],
-    [21, 'Meja cover untuk ruang ujian', 'unit', 110, 220, 330, 440, 550],
-    [22, 'Kursi susun cover untuk ruang ujian', 'unit', 110, 220, 330, 440, 550],
-    [23, 'Meja cover untuk panitia ruang transit', 'unit', 2, 2, 3, 3, 4],
-    [24, 'Kursi susun tanpa cover untuk panitia ruang transit', 'unit', 4, 4, 6, 6, 8],
-    [25, 'Printer termasuk toner/tinta registrasi', 'unit', 1, 2, 3, 4, 5],
-    [26, 'Kursi susun tanpa cover untuk peserta ruang transit, registrasi, steril', 'unit', 100, 200, 300, 400, 500],
-    [27, 'Meja cover untuk panitia ruang registrasi', 'unit', 2, 4, 6, 8, 10],
-    [28, 'Kursi susun tanpa cover untuk panitia ruang registrasi', 'unit', 2, 4, 6, 8, 10],
-    [29, 'Tenda semi dekor ruang transit, steril, registrasi, penitipan barang + lampu min 40 watt (tiap 25 m2) termasuk elektrikal', 'modul', 8, 16, 24, 32, 40],
-    [30, 'Tenda sarnafil untuk ruang medis termasuk elektrikal dan lampu (tiap 25 m2)', 'modul', 1, 1, 2, 2, 2],
-    [31, 'Pembatas antrian (1 kaki, 1 tiang, 1 tali)', 'set', 10, 20, 30, 40, 50],
-    [32, 'Sound portable untuk ruang transit, registrasi, steril, ruang ujian dan elektrikal', 'set', 2, 2, 3, 4, 4],
-    [33, 'AC standing untuk ruang ujian dan medis termasuk elektrikal', 'unit', 2, 4, 6, 8, 10],
-    [34, 'Misty fan termasuk pengisian airnya dan elektrikal untuk ruang transit, registrasi, steril', 'unit', 2, 4, 6, 8, 10],
-    [35, 'Genset termasuk solar + teknisi standby min 12 jam', 'unit', 1, 1, 2, 2, 2],
-    [36, 'ATK peserta dan panitia', 'set', 100, 200, 300, 400, 500],
-    [37, 'Sewa gedung (ruang untuk ujian)', 'paket', 1, 1, 1, 1, 1],
-    [38, 'Sistem Aplikasi Pengelolaan dan Pengendalian Pelaksanaan Seleksi di Seluruh Titik Lokasi Tes secara Online', 'sistem', 1, 1, 1, 1, 1],
+    [17, 'LCD Projector termasuk screen untuk ruang ujian min 3000 lumens', 'unit', 1, 2, 3, 4, 5, 'Screen min 175x175 mm, standing tripod min 1 m'],
+    [18, 'CCTV termasuk display dan media penyimpanan', 'unit', 2, 4, 6, 8, 10, 'Satu arah (bukan 360), indoor min 2MP, DVR/NVR (bukan IP camera), backup harian diserahkan ke panitia'],
+    [19, 'Hardisk 2 TB', 'unit', 1, 2, 3, 4, 5, 'Diserahkan ke panitia instansi penyelenggara pada akhir seleksi'],
+    [20, 'TV LCD termasuk standing bracket, elektrikal, dan flashdisk min 2GB', 'unit', 1, 2, 3, 4, 5, 'Minimal 50 inch, antar-TV terhubung HDMI/UTP'],
+    [21, 'Meja cover untuk ruang ujian', 'unit', 105, 210, 315, 420, 525, 'Sudah termasuk cadangan 5%; ukuran min 45x60 cm per peserta'],
+    [22, 'Kursi susun cover untuk ruang ujian', 'unit', 105, 210, 315, 420, 525, 'Sudah termasuk cadangan 5%'],
+    [23, 'Meja cover untuk panitia ruang transit', 'unit', 5, 5, 5, 5, 5],
+    [24, 'Kursi susun tanpa cover untuk panitia ruang transit', 'unit', 14, 14, 14, 14, 14],
+    [25, 'Printer termasuk toner/tinta registrasi', 'unit', 1, 1, 1, 1, 1, 'Printer warna, kertas up to F4, 600x600 dpi'],
+    [26, 'Kursi susun tanpa cover untuk peserta ruang transit, registrasi, steril', 'unit', 200, 400, 600, 800, 1000],
+    [27, 'Meja cover untuk panitia ruang registrasi', 'unit', 3, 5, 8, 10, 13],
+    [28, 'Kursi susun tanpa cover untuk panitia ruang registrasi', 'unit', 3, 5, 8, 10, 13],
+    [29, 'Tenda semi dekor ruang transit, steril, registrasi, penitipan barang + lampu min 40 watt (tiap 25 m2) termasuk elektrikal', 'm2', 300, 600, 900, 1200, 1500],
+    [30, 'Tenda sarnafil untuk ruang medis termasuk elektrikal dan lampu (tiap 25 m2)', 'm2', 25, 25, 25, 25, 25, 'Warna putih, ukuran min 5x5 m'],
+    [31, 'Pembatas antrian (1 kaki, 1 tiang, 1 tali)', 'unit', 20, 40, 60, 80, 100],
+    [32, 'Sound portable untuk ruang transit, registrasi, steril, ruang ujian dan elektrikal', 'unit', 2, 3, 4, 6, 7, 'Include mic wireless min 1/unit, speaker min 10 inch, jangkauan min 30 m'],
+    [33, 'AC standing untuk ruang ujian dan medis termasuk elektrikal', 'unit', 5, 10, 15, 20, 25, 'Minimal 5PK termasuk instalasi'],
+    [34, 'Misty fan termasuk pengisian airnya dan elektrikal untuk ruang transit, registrasi, steril', 'unit', 5, 10, 15, 20, 25, 'Minimal diameter 26 inch'],
+    [35, 'Genset termasuk solar + teknisi standby min 12 jam', 'unit', 1, 1, 1, 1, 1, 'Kapasitas mengikuti tier: 100/200/300/400/500 KVA'],
+    [36, 'ATK peserta dan panitia', 'paket', 1, 1, 1, 1, 1, 'Kertas buram, pensil, HVS A4, nomor penitipan, stiker label meja, spanduk 1,5x4 m, denah 2,5x2 m, dll.'],
+    [37, 'Sewa gedung (ruang untuk ujian)', 'unit', 1, 1, 1, 1, 1, 'Hotel/gedung pertemuan (bukan GOR); APAR 9 kg 2 bh, P3K tipe C + oksigen, kursi roda min 2'],
+    [38, 'Sistem Aplikasi Pengelolaan dan Pengendalian Pelaksanaan Seleksi di Seluruh Titik Lokasi Tes secara Online', 'aplikasi', 1, 1, 1, 1, 1, 'Web based, dashboard Pimpinan/PPK/Pengawas/Inspektorat, approval BA koordinator ke pengawas'],
   ];
 
-  for (const [no, name, unit, q100, q200, q300, q400, q500] of masterItems) {
+  // Kategori sarpras — dasar pemetaan vendor: perangkat elektronik/TIK = IT,
+  // sisanya (furnitur, tenda, kelistrikan, gedung, ATK) = Non IT.
+  const IT_ITEM_NOS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 25, 38]);
+
+  for (const [no, name, unit, q100, q200, q300, q400, q500, notes] of masterItems) {
+    const category = IT_ITEM_NOS.has(no) ? ('SARPRAS_IT' as const) : ('SARPRAS_NON_IT' as const);
     await prisma.masterItem.upsert({
       where: { no },
-      update: { name, unit, qty100: q100, qty200: q200, qty300: q300, qty400: q400, qty500: q500 },
-      create: { no, name, unit, ownership: 'SEWA', qty100: q100, qty200: q200, qty300: q300, qty400: q400, qty500: q500 },
+      update: { name, unit, category, qty100: q100, qty200: q200, qty300: q300, qty400: q400, qty500: q500, notes: notes ?? null },
+      create: { no, name, unit, ownership: 'SEWA', category, qty100: q100, qty200: q200, qty300: q300, qty400: q400, qty500: q500, notes: notes ?? null },
     });
   }
-  console.log(`✅ ${masterItems.length} master item standar dibuat (Lampiran 2 BKN)`);
+  console.log(`✅ ${masterItems.length} master item standar dibuat (Lampiran E Kepsesma 240/2026)`);
 
   // ── Assign item ke tiap lokasi sesuai tier kapasitasnya ────────────────────
   //    Mirror logika LocationsService.syncItemsFromMaster: pilih kuantitas
@@ -183,7 +189,7 @@ async function main() {
   console.log(`✅ ${assignedCount} item lokasi di-assign sesuai kapasitas (${locations.length} lokasi)`);
 
   // ── Master data: kebutuhan tenaga teknis per kapasitas
-  //    (BAB 4 atribut 2.3 Dok. Pengumuman BKN — angka persis dari dokumen)
+  //    (BAB 4 atribut 2.3 dokumen spesifikasi instansi penyelenggara — angka persis dari dokumen)
   const personnelReqs = [
     { capacity: 100, koordinator: 1, tenagaIt: 1, elektrikal: 1, sarpras: 1 },
     { capacity: 200, koordinator: 1, tenagaIt: 2, elektrikal: 2, sarpras: 1 },

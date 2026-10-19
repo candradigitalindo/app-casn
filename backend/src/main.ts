@@ -22,8 +22,9 @@ async function bootstrap() {
 
   // File (BA, foto insiden) disimpan sebagai base64 data URL di body JSON,
   // jadi limit default 100kb body-parser tidak cukup.
-  app.use(json({ limit: '15mb' }));
-  app.use(urlencoded({ extended: true, limit: '15mb' }));
+  // 10 MB file → base64 ±13,4 MB + field lain; 25 MB memberi margin aman.
+  app.use(json({ limit: '25mb' }));
+  app.use(urlencoded({ extended: true, limit: '25mb' }));
 
   // CORS
   app.enableCors({
@@ -64,12 +65,12 @@ async function bootstrap() {
       .addTag('Logistics', 'Logistik dan inventaris')
       .addTag('Installations', 'Progress instalasi')
       .addTag('Incidents', 'Tiket insiden dan SLA')
-      .addTag('Attendance', 'Absensi peserta')
       .addTag('Stages', 'Tahapan pekerjaan')
       .addTag('Personnel', 'SDM lapangan')
       .addTag('Documents', 'Dokumen lokasi')
       .addTag('Berita Acara', 'Berita acara digital')
       .addTag('Reports', 'Laporan dan audit trail')
+      .addTag('Master Data', 'Master data wilayah (provinsi & kabupaten/kota)')
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);

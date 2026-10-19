@@ -1,11 +1,11 @@
-import { IsEnum, IsOptional, IsString, IsArray, IsNumber, Min } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsArray, IsNumber, IsUUID, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TicketSeverity, TicketCategory, TicketStatus } from '@prisma/client';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class CreateTicketDto {
-  @ApiProperty() @IsString() locationId: string;
+  @ApiProperty() @IsUUID() locationId: string;
   @ApiProperty({ enum: TicketSeverity }) @IsEnum(TicketSeverity) severity: TicketSeverity;
   @ApiProperty({ enum: TicketCategory }) @IsEnum(TicketCategory) category: TicketCategory;
   @ApiProperty() @IsString() title: string;

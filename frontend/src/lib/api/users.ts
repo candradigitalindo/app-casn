@@ -19,7 +19,8 @@ export const usersApi = {
   create: (data: CreateUserDto): Promise<ApiResponse<User>> =>
     apiClient.post('/api/v1/users', data),
 
-  update: (id: string, data: Partial<Omit<CreateUserDto, 'password'>> & { password?: string }): Promise<ApiResponse<User>> =>
+  // locationId: null = lepaskan ikatan lokasi (mis. saat role diubah jadi pengawas instansi)
+  update: (id: string, data: Partial<Omit<CreateUserDto, 'password' | 'locationId'>> & { password?: string; locationId?: string | null }): Promise<ApiResponse<User>> =>
     apiClient.patch(`/api/v1/users/${id}`, data),
 
   delete: (id: string): Promise<ApiResponse<void>> =>

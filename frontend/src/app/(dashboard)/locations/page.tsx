@@ -14,13 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/searchable-select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
@@ -37,7 +31,8 @@ import {
 import { locationStatusTextColors } from "@/lib/status-colors";
 import { LocationStatusLabels, LocationStatus, StagePhaseLabels } from "@/types/enums";
 import type { Location } from "@/types/models";
-import { useLocations, useCreateLocation, useUpdateLocation, useDeleteLocation, usePermissions, useStagesSummary } from "@/lib/hooks";
+import { useLocations, useCreateLocation, useUpdateLocation, useDeleteLocation, usePermissions, useStagesSummary, useProvinces, useRegencies } from "@/lib/hooks";
+import { formatDate, formatDateShort, toDateInputValue } from "@/lib/format";
 
 const EMPTY_FORM: Omit<Location, "id" | "createdAt" | "updatedAt"> = {
   code: "",
@@ -55,10 +50,20 @@ const EMPTY_FORM: Omit<Location, "id" | "createdAt" | "updatedAt"> = {
 
 const CAPACITY_OPTIONS = [100, 200, 300, 400, 500];
 
+const STATUS_SELECT_OPTIONS: SearchableSelectOption[] = Object.entries(LocationStatusLabels).map(
+  ([value, label]) => ({ value, label })
+);
+
+const CAPACITY_SELECT_OPTIONS: SearchableSelectOption[] = CAPACITY_OPTIONS.map((cap) => ({
+  value: String(cap),
+  label: `${cap} Peserta / Sesi`,
+}));
+
 export default function LocationsPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<LocationStatus | "ALL">("ALL");
+  const [provinceFilter, setProvinceFilter] = useState("ALL");
 
   // Dialog states
   const [formOpen, setFormOpen] = useState(false);
@@ -69,15 +74,53 @@ export default function LocationsPage() {
   const [viewingLocation, setViewingLocation] = useState<Location | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
-  const { data: response, isLoading } = useLocations(
-    statusFilter !== "ALL"
-      ? { status: statusFilter, search: search || undefined }
-      : { search: search || undefined }
+  const { data: response, isLoading } = useLocations({
+    ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+    ...(provinceFilter !== "ALL" ? { province: provinceFilter } : {}),
+    search: search || undefined,
+  });
+
+  // Master data wilayah: dropdown provinsi & kabupaten/kota di form + filter
+  const { data: provRes } = useProvinces();
+  const masterProvinces = provRes?.data ?? [];
+  const selectedProvince = masterProvinces.find((p) => p.name === form.province);
+  const { data: regRes } = useRegencies(
+    { provinceId: selectedProvince?.id },
+    !!selectedProvince
   );
+  const regencyOptions = selectedProvince ? (regRes?.data ?? []) : [];
+
+  const provinceFilterSelectOptions = useMemo<SearchableSelectOption[]>(
+    () => [
+      { value: "ALL", label: "Semua Provinsi" },
+      ...masterProvinces.map((p) => ({ value: p.name, label: p.name, keywords: p.code })),
+    ],
+    [masterProvinces]
+  );
+  // Nilai lama yang tidak ada di master data tetap ditampilkan agar edit tidak kehilangan data
+  const provinceSelectOptions = useMemo<SearchableSelectOption[]>(
+    () => [
+      ...(form.province && !masterProvinces.some((p) => p.name === form.province)
+        ? [{ value: form.province, label: form.province }]
+        : []),
+      ...masterProvinces.map((p) => ({ value: p.name, label: p.name, keywords: p.code })),
+    ],
+    [masterProvinces, form.province]
+  );
+  const citySelectOptions = useMemo<SearchableSelectOption[]>(
+    () => [
+      ...(form.city && !regencyOptions.some((r) => r.name === form.city)
+        ? [{ value: form.city, label: form.city }]
+        : []),
+      ...regencyOptions.map((r) => ({ value: r.name, label: r.name, keywords: r.code })),
+    ],
+    [regencyOptions, form.city]
+  );
+
   const createLocation = useCreateLocation();
   const updateLocation = useUpdateLocation();
   const deleteLocation = useDeleteLocation();
-  const { canWrite } = usePermissions();
+  const { canUpdateLocation: canWrite, canCreateLocation, canDeleteLocation } = usePermissions();
 
   const locations = response?.data ?? [];
   const filtered = locations;
@@ -110,8 +153,9 @@ export default function LocationsPage() {
       longitude: loc.longitude,
       status: loc.status,
       capacity: loc.capacity,
-      startDate: loc.startDate ?? "",
-      endDate: loc.endDate ?? "",
+      // Backend mengirim ISO datetime penuh; <input type="date"> hanya menerima yyyy-MM-dd
+      startDate: toDateInputValue(loc.startDate),
+      endDate: toDateInputValue(loc.endDate),
     });
     setFormOpen(true);
   }, []);
@@ -157,7 +201,7 @@ export default function LocationsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Titik Lokasi</h1>
           <p className="text-muted-foreground text-sm mt-1">Kelola seluruh lokasi pelaksanaan seleksi</p>
         </div>
-        {canWrite && (
+        {canCreateLocation && (
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-2" />
             Tambah Lokasi
@@ -188,6 +232,13 @@ export default function LocationsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Cari lokasi, provinsi, atau kode..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
+        <SearchableSelect
+          options={provinceFilterSelectOptions}
+          value={provinceFilter}
+          onValueChange={(v) => setProvinceFilter(v || "ALL")}
+          searchPlaceholder="Cari provinsi..."
+          className="sm:w-52"
+        />
         <div className="flex gap-2 overflow-x-auto pb-1">
           <Button variant={statusFilter === "ALL" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("ALL")}>Semua</Button>
           {Object.entries(LocationStatusLabels).map(([key, label]) => (
@@ -244,7 +295,7 @@ export default function LocationsPage() {
                         Edit
                       </DropdownMenuItem>
                     )}
-                    {canWrite && (
+                    {canDeleteLocation && (
                       <DropdownMenuItem
                         onClick={() => openDelete(location.id)}
                         className="text-red-600 focus:text-red-600 focus:bg-red-50"
@@ -291,7 +342,7 @@ export default function LocationsPage() {
                     <span>
                       {new Date(location.startDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}
                       {" – "}
-                      {new Date(location.endDate).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                      {formatDateShort(location.endDate)}
                     </span>
                   </div>
                 )}
@@ -352,11 +403,26 @@ export default function LocationsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-[10px] font-bold text-muted-foreground uppercase">Provinsi</Label>
-                    <Input placeholder="DKI Jakarta" className="h-9 text-sm bg-muted/20" value={form.province} onChange={(e) => updateForm("province", e.target.value)} />
+                    <SearchableSelect
+                      options={provinceSelectOptions}
+                      value={form.province || null}
+                      onValueChange={(v) => { updateForm("province", v); updateForm("city", ""); }}
+                      placeholder="Pilih provinsi..."
+                      searchPlaceholder="Cari provinsi..."
+                      className="h-9 text-sm bg-muted/20 w-full"
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-[10px] font-bold text-muted-foreground uppercase">Kota/Kabupaten</Label>
-                    <Input placeholder="Jakarta Selatan" className="h-9 text-sm bg-muted/20" value={form.city} onChange={(e) => updateForm("city", e.target.value)} />
+                    <SearchableSelect
+                      options={citySelectOptions}
+                      value={form.city || null}
+                      onValueChange={(v) => updateForm("city", v)}
+                      placeholder={form.province ? "Pilih kabupaten/kota..." : "Pilih provinsi dulu"}
+                      searchPlaceholder="Cari kabupaten/kota..."
+                      disabled={!form.province}
+                      className="h-9 text-sm bg-muted/20 w-full"
+                    />
                   </div>
                 </div>
 
@@ -384,14 +450,13 @@ export default function LocationsPage() {
               <div className="space-y-6 flex-1">
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Status Pelaksanaan</Label>
-                  <Select value={form.status as string} onValueChange={(val) => updateForm("status", val as LocationStatus)}>
-                    <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(LocationStatusLabels).map(([key, label]) => (
-                        <SelectItem key={key} value={key} className="text-xs">{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={STATUS_SELECT_OPTIONS}
+                    value={form.status as string}
+                    onValueChange={(val) => updateForm("status", val as LocationStatus)}
+                    className="h-10 text-sm"
+                    renderOption={(o) => <span className="text-xs">{o.label}</span>}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
@@ -424,16 +489,14 @@ export default function LocationsPage() {
 
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold text-primary uppercase tracking-wider">Kapasitas Peserta</Label>
-                  <Select value={String(form.capacity)} onValueChange={(val) => updateForm("capacity", parseInt(val || "0"))}>
-                    <SelectTrigger className="h-12 text-lg font-bold border-primary/20 bg-primary/5">
-                      <SelectValue placeholder="Pilih Kapasitas..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CAPACITY_OPTIONS.map((cap) => (
-                        <SelectItem key={cap} value={String(cap)} className="font-semibold">{cap} Peserta / Sesi</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={CAPACITY_SELECT_OPTIONS}
+                    value={String(form.capacity)}
+                    onValueChange={(val) => updateForm("capacity", parseInt(val || "0"))}
+                    placeholder="Pilih Kapasitas..."
+                    className="h-12 text-lg font-bold border-primary/20 bg-primary/5"
+                    renderOption={(o) => <span className="font-semibold">{o.label}</span>}
+                  />
                   <p className="text-[10px] text-muted-foreground italic mt-2 flex items-start gap-1.5 leading-tight">
                     <Info className="h-3 w-3 mt-0.5 shrink-0" />
                     Kapasitas ini akan menentukan standar operasional dan alokasi sumber daya di lokasi tersebut.
@@ -510,11 +573,11 @@ export default function LocationsPage() {
               <div className="grid grid-cols-2 gap-4 pt-2 border-t">
                 <div>
                   <p className="text-xs text-muted-foreground">Dibuat</p>
-                  <p className="text-sm font-medium">{new Date(viewingLocation.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</p>
+                  <p className="text-sm font-medium">{formatDate(viewingLocation.createdAt)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Diperbarui</p>
-                  <p className="text-sm font-medium">{new Date(viewingLocation.updatedAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</p>
+                  <p className="text-sm font-medium">{formatDate(viewingLocation.updatedAt)}</p>
                 </div>
               </div>
               {canWrite && (
@@ -523,10 +586,12 @@ export default function LocationsPage() {
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => { setDetailOpen(false); openDelete(viewingLocation.id); }}>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Hapus
-                  </Button>
+                  {canDeleteLocation && (
+                    <Button variant="outline" size="sm" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => { setDetailOpen(false); openDelete(viewingLocation.id); }}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Hapus
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

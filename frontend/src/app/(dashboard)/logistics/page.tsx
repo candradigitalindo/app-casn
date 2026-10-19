@@ -9,6 +9,9 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  SearchableSelect, type SearchableSelectOption,
+} from "@/components/ui/searchable-select";
+import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -19,8 +22,9 @@ import {
 import { ShipmentStatus, ShipmentStatusLabels } from "@/types/enums";
 import {
   useShipments, useLocations, useCreateShipment, useUpdateShipment,
-  useDeleteShipment, useInventoryItems, usePermissions,
+  useDeleteShipment, useInventoryItems, usePermissions, useProvinces,
 } from "@/lib/hooks";
+import { formatDateShort } from "@/lib/format";
 import type { LogisticsShipment, Location, InventoryItem } from "@/types/models";
 
 
@@ -600,14 +604,17 @@ function EditShipmentDialog({
 export default function LogisticsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusStyleKey | "ALL">("ALL");
+  const [provinceFilter, setProvinceFilter] = useState("ALL");
   const [createOpen, setCreateOpen] = useState(false);
   const [advanceTarget, setAdvanceTarget] = useState<LogisticsShipment | null>(null);
   const [editTarget, setEditTarget] = useState<LogisticsShipment | null>(null);
-  const { canWrite } = usePermissions();
+  const { canWrite, canManageShipments } = usePermissions();
 
   const { data: shipmentsResponse, isLoading: shipmentsLoading } = useShipments({});
   const { data: locationsResponse, isLoading: locationsLoading } = useLocations({});
   const { data: inventoryResponse } = useInventoryItems();
+  const { data: provRes } = useProvinces();
+  const masterProvinces = provRes?.data ?? [];
 
   const allShipments: LogisticsShipment[] = shipmentsResponse?.data ?? [];
   const allLocations: Location[] = locationsResponse?.data ?? [];
@@ -616,6 +623,14 @@ export default function LogisticsPage() {
   const itemNames = useMemo(
     () => Object.fromEntries(inventoryItems.map((i) => [i.id, i.name])),
     [inventoryItems]
+  );
+
+  const provinceOptions = useMemo<SearchableSelectOption[]>(
+    () => [
+      { value: "ALL", label: "Semua Provinsi" },
+      ...masterProvinces.map((p) => ({ value: p.name, label: p.name, keywords: p.code })),
+    ],
+    [masterProvinces]
   );
 
   const locationData = useMemo(() => {
@@ -631,6 +646,7 @@ export default function LogisticsPage() {
   const filtered = useMemo(() => {
     return locationData.filter((d) => {
       const matchStatus = statusFilter === "ALL" || d.overallStatus === statusFilter;
+      const matchProvince = provinceFilter === "ALL" || d.loc.province === provinceFilter;
       const q = search.toLowerCase();
       const matchSearch =
         !q ||
@@ -638,9 +654,9 @@ export default function LogisticsPage() {
         d.loc.code.toLowerCase().includes(q) ||
         d.loc.city.toLowerCase().includes(q) ||
         d.loc.province.toLowerCase().includes(q);
-      return matchStatus && matchSearch;
+      return matchStatus && matchProvince && matchSearch;
     });
-  }, [locationData, statusFilter, search]);
+  }, [locationData, statusFilter, provinceFilter, search]);
 
   const summary = useMemo(() => {
     const counts: Record<string, number> = { NONE: 0 };
@@ -668,7 +684,7 @@ export default function LogisticsPage() {
             Status pengiriman peralatan per titik lokasi — persiapan, perjalanan, hingga diterima
           </p>
         </div>
-        {canWrite && (
+        {canManageShipments && (
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> Buat Pengiriman
           </Button>
@@ -692,8 +708,8 @@ export default function LogisticsPage() {
         ))}
       </div>
 
-      {/* Search */}
-      <div className="flex gap-3">
+      {/* Search & filter provinsi */}
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -703,8 +719,15 @@ export default function LogisticsPage() {
             className="pl-9"
           />
         </div>
-        {(search || statusFilter !== "ALL") && (
-          <Button variant="outline" onClick={() => { setSearch(""); setStatusFilter("ALL"); }}>Reset</Button>
+        <SearchableSelect
+          options={provinceOptions}
+          value={provinceFilter}
+          onValueChange={(v) => setProvinceFilter(v || "ALL")}
+          searchPlaceholder="Cari provinsi..."
+          className="sm:w-52"
+        />
+        {(search || statusFilter !== "ALL" || provinceFilter !== "ALL") && (
+          <Button variant="outline" onClick={() => { setSearch(""); setStatusFilter("ALL"); setProvinceFilter("ALL"); }}>Reset</Button>
         )}
       </div>
 
@@ -725,6 +748,7 @@ export default function LogisticsPage() {
               onAdvance={canWrite ? setAdvanceTarget : undefined}
               onEdit={canWrite ? setEditTarget : undefined}
               canWrite={canWrite}
+              canManage={canManageShipments}
               itemNames={itemNames}
             />
           ))}
@@ -762,7 +786,7 @@ export default function LogisticsPage() {
 // Kartu per titik lokasi
 // ─────────────────────────────────────────────────────────────
 function LocationLogisticsCard({
-  location, shipments, overallStatus, progress, items, onAdvance, onEdit, canWrite, itemNames,
+  location, shipments, overallStatus, progress, items, onAdvance, onEdit, canWrite, canManage, itemNames,
 }: {
   location: Location;
   shipments: LogisticsShipment[];
@@ -772,6 +796,8 @@ function LocationLogisticsCard({
   onAdvance?: (s: LogisticsShipment) => void;
   onEdit?: (s: LogisticsShipment) => void;
   canWrite: boolean;
+  // Buat/hapus pengiriman: hanya Super Admin & Tim Logistik (selaras backend)
+  canManage: boolean;
   itemNames: Record<string, string>;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -908,10 +934,10 @@ function LocationLogisticsCard({
 
                         {/* Timestamps */}
                         <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-                          {shp.shippedAt && <span>Dikirim: {new Date(shp.shippedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>}
-                          {shp.arrivedAt && <span>Tiba: {new Date(shp.arrivedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>}
-                          {shp.receivedAt && <span>Diterima: {new Date(shp.receivedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>}
-                          {!shp.shippedAt && <span>Dibuat: {new Date(shp.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>}
+                          {shp.shippedAt && <span>Dikirim: {formatDateShort(shp.shippedAt)}</span>}
+                          {shp.arrivedAt && <span>Tiba: {formatDateShort(shp.arrivedAt)}</span>}
+                          {shp.receivedAt && <span>Diterima: {formatDateShort(shp.receivedAt)}</span>}
+                          {!shp.shippedAt && <span>Dibuat: {formatDateShort(shp.createdAt)}</span>}
                         </div>
 
                         {/* Aksi */}
@@ -930,7 +956,7 @@ function LocationLogisticsCard({
                               <Pencil className="h-3 w-3 mr-1" /> Edit Catatan
                             </Button>
                           )}
-                          {canDelete && canWrite && (
+                          {canDelete && canManage && (
                             <Button
                               size="sm" variant="outline"
                               className="h-7 text-xs text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"

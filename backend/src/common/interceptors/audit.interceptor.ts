@@ -9,6 +9,24 @@ import { tap } from 'rxjs/operators';
 import { PrismaService } from '../../database/prisma.service';
 
 const WRITE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+const MAX_AUDIT_STRING = 2048;
+
+function sanitizeLargeValues(obj: Record<string, any>): void {
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (typeof val === 'string' && (val.startsWith('data:') || val.length > MAX_AUDIT_STRING)) {
+      obj[key] = `[dipangkas: ${val.length} karakter]`;
+    } else if (Array.isArray(val)) {
+      obj[key] = val.map((v) =>
+        typeof v === 'string' && (v.startsWith('data:') || v.length > MAX_AUDIT_STRING)
+          ? `[dipangkas: ${v.length} karakter]`
+          : (v && typeof v === 'object' ? (sanitizeLargeValues(v), v) : v),
+      );
+    } else if (val && typeof val === 'object') {
+      sanitizeLargeValues(val);
+    }
+  }
+}
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
@@ -32,6 +50,8 @@ export class AuditInterceptor implements NestInterceptor {
         const body = { ...(request.body ?? {}) };
         delete body.password;
         delete body.refreshToken;
+        // Jangan gandakan isi file (base64 data URL bisa belasan MB) ke tabel audit
+        sanitizeLargeValues(body);
 
         await this.prisma.auditLog.create({
           data: {

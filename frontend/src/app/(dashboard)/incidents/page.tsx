@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+  SearchableSelect, type SearchableSelectOption,
+} from "@/components/ui/searchable-select";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -86,6 +86,16 @@ const NEXT_STATUS: Partial<Record<TicketStatus, TicketStatus[]>> = {
   [TicketStatus.ESCALATED]:   [TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED],
 };
 
+// Baris status (dot warna + label) — dipakai di dropdown dan trigger agar tampilan sama
+function renderStatusOption(o: SearchableSelectOption) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`h-2 w-2 rounded-full ${STATUS_STYLE[o.value as TicketStatus].dot}`} />
+      {o.label}
+    </div>
+  );
+}
+
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
@@ -107,16 +117,22 @@ function UpdateStatusDialog({
 }) {
   const update = useUpdateTicketStatus();
   const [nextStatus, setNextStatus] = useState<string>("");
-  const [assignedTo, setAssignedTo] = useState("");
   const [resolutionNote, setResolutionNote] = useState("");
 
   // Reset isian setiap dialog dibuka untuk tiket lain (dialog selalu ter-mount)
   useEffect(() => {
-    if (open) { setNextStatus(""); setAssignedTo(""); setResolutionNote(""); }
+    if (open) { setNextStatus(""); setResolutionNote(""); }
   }, [open]);
 
+  const statusOptions = useMemo<SearchableSelectOption[]>(
+    () => (ticket ? NEXT_STATUS[ticket.status] ?? [] : []).map((s) => ({
+      value: s,
+      label: STATUS_STYLE[s].label,
+    })),
+    [ticket]
+  );
+
   if (!ticket) return null;
-  const options = NEXT_STATUS[ticket.status] ?? [];
 
   function handleSubmit() {
     if (!ticket || !nextStatus) return;
@@ -124,10 +140,9 @@ function UpdateStatusDialog({
       {
         id: ticket.id,
         status: nextStatus as TicketStatus,
-        ...(assignedTo ? { assignedTo } : {}),
         ...(resolutionNote ? { resolutionNote } : {}),
       },
-      { 
+      {
         onSuccess: () => {
           toast.success("Status tiket diperbarui");
           onOpenChange(false);
@@ -136,9 +151,8 @@ function UpdateStatusDialog({
     );
   }
 
-  const needsAssignee = nextStatus === TicketStatus.ASSIGNED;
   const needsNote = nextStatus === TicketStatus.RESOLVED;
-  const valid = !!nextStatus && (!needsAssignee || assignedTo) && (!needsNote || resolutionNote);
+  const valid = !!nextStatus && (!needsNote || resolutionNote);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -155,34 +169,16 @@ function UpdateStatusDialog({
               {STATUS_STYLE[ticket.status].label}
             </Badge>
             <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <Select value={nextStatus} onValueChange={(v) => setNextStatus(v as TicketStatus)}>
-              <SelectTrigger className="h-8 text-xs flex-1">
-                <SelectValue placeholder="Pilih status baru..." />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((s) => (
-                  <SelectItem key={s} value={s} className="text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className={`h-2 w-2 rounded-full ${STATUS_STYLE[s].dot}`} />
-                      {STATUS_STYLE[s].label}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={statusOptions}
+              value={nextStatus}
+              onValueChange={(v) => setNextStatus(v as TicketStatus)}
+              placeholder="Pilih status baru..."
+              className="h-8 text-xs flex-1"
+              renderOption={renderStatusOption}
+              renderValue={renderStatusOption}
+            />
           </div>
-
-          {needsAssignee && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">Ditugaskan kepada *</Label>
-              <Input
-                value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
-                placeholder="Nama atau ID teknisi"
-                className="h-8 text-sm"
-              />
-            </div>
-          )}
 
           {needsNote && (
             <div className="space-y-1.5">
@@ -227,6 +223,7 @@ function TicketCard({
   const sta = STATUS_STYLE[ticket.status];
   const isDone = ticket.status === TicketStatus.RESOLVED || ticket.status === TicketStatus.CLOSED;
   const canUpdate = !!NEXT_STATUS[ticket.status];
+  const slaOverdue = !isDone && !!ticket.slaExpiresAt && new Date(ticket.slaExpiresAt) < new Date();
 
   return (
     <Card className={`overflow-hidden border-l-4 transition-shadow hover:shadow-md ${sev.border}`}>
@@ -252,7 +249,11 @@ function TicketCard({
                   <span className={`h-1.5 w-1.5 rounded-full mr-1 inline-block ${sta.dot}`} />
                   {sta.label}
                 </Badge>
-
+                {slaOverdue && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-red-700 bg-red-50 border-red-200 font-semibold">
+                    SLA terlewati
+                  </Badge>
+                )}
               </div>
 
               {/* Title */}
@@ -382,7 +383,6 @@ type FormState = {
   category: TicketCategory;
   title: string;
   description: string;
-  reporterName: string;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -412,7 +412,8 @@ function CreateTicketDialog({
     TicketSeverity.CRITICAL, TicketSeverity.HIGH, TicketSeverity.MEDIUM, TicketSeverity.LOW,
   ];
   const catEntries = Object.entries(TicketCategoryLabels) as [TicketCategory, string][];
-  const valid = !!form.title && !!form.description && !!form.reporterName;
+  // locationId wajib — tiket tanpa lokasi ditolak backend (FK ke Location)
+  const valid = !!form.title && !!form.description && !!form.locationId;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -530,23 +531,9 @@ function CreateTicketDialog({
           {/* Kolom kanan — konteks & pelapor */}
           <div className="md:col-span-5 p-6 space-y-6 bg-muted/5">
 
-              {/* Pelapor */}
+              {/* Lokasi (nama pelapor otomatis diambil dari akun yang login) */}
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Nama Pelapor *</Label>
-                <div className="relative">
-                  <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Nama lengkap Anda"
-                    value={form.reporterName}
-                    onChange={(e) => setForm((f) => ({ ...f, reporterName: e.target.value }))}
-                    className="h-9 text-sm bg-muted/20 pl-8"
-                  />
-                </div>
-              </div>
-
-              {/* Lokasi */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Titik Lokasi</Label>
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Titik Lokasi *</Label>
                 {selectedLoc ? (
                   <button
                     type="button"
@@ -638,7 +625,6 @@ const EMPTY_FORM = {
   category: TicketCategory.IT_HARDWARE,
   title: "",
   description: "",
-  reporterName: "",
 };
 
 export default function IncidentsPage() {
@@ -689,7 +675,7 @@ export default function IncidentsPage() {
   }, [tickets]);
 
   function handleCreate() {
-    if (!form.title || !form.description || !form.reporterName) return;
+    if (!form.title || !form.description || !form.locationId) return;
     createTicket.mutate(form, {
       onSuccess: () => { 
         toast.success("Tiket berhasil dibuat");

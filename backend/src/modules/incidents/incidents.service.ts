@@ -88,8 +88,9 @@ export class IncidentsService {
 
     const updated = await this.prisma.incidentTicket.update({
       where: { id },
-      data: { assignedTo: dto.assignedTo, status: TicketStatus.ASSIGNED },
+      data: { assignedTo: dto.assignedTo, status: TicketStatus.ASSIGNED, resolvedAt: null },
     });
+    this.events.emitTicketUpdated(id, updated.status, updated);
     return ok(updated, 'Tiket berhasil di-assign');
   }
 
@@ -99,9 +100,11 @@ export class IncidentsService {
 
     const data: any = {};
     if (dto.status) data.status = dto.status;
-    if (dto.resolutionNote) data.resolutionNote = dto.resolutionNote;
+    if (dto.resolutionNote !== undefined) data.resolutionNote = dto.resolutionNote;
     if (dto.status === TicketStatus.RESOLVED || dto.status === TicketStatus.CLOSED) {
-      data.resolvedAt = new Date();
+      data.resolvedAt = ticket.resolvedAt ?? new Date();
+    } else if (dto.status) {
+      data.resolvedAt = null;
     }
 
     const updated = await this.prisma.incidentTicket.update({ where: { id }, data });
@@ -109,10 +112,11 @@ export class IncidentsService {
     return ok(updated, 'Status tiket diperbarui');
   }
 
-  async getOverdue() {
+  async getOverdue(locationId?: string) {
     const tickets = await this.prisma.incidentTicket.findMany({
       where: {
-        slaExpiresAt: { lt: new Date() },
+        ...(locationId ? { locationId } : {}),
+          slaExpiresAt: { lt: new Date() },
         status: { notIn: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
       },
       orderBy: { slaExpiresAt: 'asc' },
@@ -121,22 +125,24 @@ export class IncidentsService {
     return ok(tickets);
   }
 
-  async getSLAStats() {
+  async getSLAStats(locationId?: string) {
     const now = new Date();
     const warn15 = new Date(now.getTime() + 15 * 60_000);
 
     const [overdue, critical, warning] = await Promise.all([
       this.prisma.incidentTicket.count({
         where: {
+          ...(locationId ? { locationId } : {}),
           slaExpiresAt: { lt: now },
           status: { notIn: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
         },
       }),
       this.prisma.incidentTicket.count({
-        where: { severity: TicketSeverity.CRITICAL, status: { notIn: [TicketStatus.RESOLVED, TicketStatus.CLOSED] } },
+        where: { ...(locationId ? { locationId } : {}), severity: TicketSeverity.CRITICAL, status: { notIn: [TicketStatus.RESOLVED, TicketStatus.CLOSED] } },
       }),
       this.prisma.incidentTicket.count({
         where: {
+          ...(locationId ? { locationId } : {}),
           slaExpiresAt: { gte: now, lte: warn15 },
           status: { notIn: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
         },
@@ -178,9 +184,11 @@ export class IncidentsService {
       where: { id },
       data: {
         status: TicketStatus.ESCALATED,
-        resolutionNote: `[ESKALASI] ${dto.reason}`,
+        resolutionNote: [ticket.resolutionNote, `[ESKALASI] ${dto.reason}`].filter(Boolean).join('\n---\n'),
+        resolvedAt: null,
       },
     });
+    this.events.emitTicketUpdated(id, updated.status, updated);
     return ok(updated, 'Tiket berhasil dieskalasi');
   }
 

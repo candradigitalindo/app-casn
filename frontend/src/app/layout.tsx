@@ -12,7 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SIPP Seleksi — Pengelolaan & Pengendalian Pelaksanaan Seleksi",
+  title: "Pengelolaan & Pengendalian Pelaksanaan Seleksi",
   description: "Sistem Aplikasi Pengelolaan dan Pengendalian Pelaksanaan Seleksi di Seluruh Titik Lokasi Tes secara Online",
 };
 

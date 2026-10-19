@@ -168,25 +168,6 @@ export interface LogisticsShipment {
 }
 
 // ============================================
-// ATTENDANCE
-// ============================================
-
-export interface AttendanceLog {
-  id: string;
-  locationId: string;
-  location?: Location;
-  participantId: string;
-  barcodeValue: string;
-  participantName: string;
-  session: number;
-  scanTime: string;
-  scannedBy: string;
-  scanner?: User;
-  notes?: string;
-  createdAt: string;
-}
-
-// ============================================
 // TAHAPAN PEKERJAAN PER TITIK LOKASI
 // ============================================
 
@@ -296,8 +277,6 @@ export interface AuditLog {
 export interface DashboardStats {
   totalLocations: number;
   activeLocations: number;
-  totalParticipants: number;
-  checkedInParticipants: number;
   openTickets: number;
   resolvedTickets: number;
   installationProgress: number;
@@ -322,15 +301,33 @@ export interface LocationStatusSummary {
 // PERSONEL SDM
 // ============================================
 
-import type { PersonnelRole } from '@/types/enums';
+import type { PersonnelRole, Gender, EducationLevel } from '@/types/enums';
 
 export interface Personnel {
   id: string;
-  locationId: string;
+  // Penugasan titik lokasi — null = belum ditugaskan
+  locationId: string | null;
+  location?: { id: string; code: string; name: string } | null;
   name: string;
   role: PersonnelRole;
-  phone?: string;
-  notes?: string;
+  phone?: string | null;
+  notes?: string | null;
+  // Data pribadi
+  nik?: string | null;
+  birthPlace?: string | null;
+  birthDate?: string | null;
+  gender?: Gender | null;
+  address?: string | null;
+  email?: string | null;
+  // Pendidikan & ijazah (min. SMA sederajat — Kepsesma 240/2026)
+  educationLevel?: EducationLevel | null;
+  educationMajor?: string | null;
+  educationInstitution?: string | null;
+  diplomaFileUrl?: string | null;
+  diplomaFileName?: string | null;
+  // Honor & rekomendasi
+  honorPerDay?: string | number | null;
+  recommendedRole?: PersonnelRole | null;
   createdAt: string;
   updatedAt: string;
 }

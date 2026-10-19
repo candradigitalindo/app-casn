@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -12,9 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/searchable-select";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -49,6 +47,7 @@ import { useAuthStore } from "@/lib/stores/auth";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatDate, formatDateShort, readFileAsDataUrl } from "@/lib/format";
 import type { LocationStage, BeritaAcara, LocationItem } from "@/types/models";
 import {
   StagePhase, StagePhaseOrder, StagePhaseLabels, StagePhaseDescriptions,
@@ -59,7 +58,29 @@ import {
   LocationStatusLabels, UserRoleLabels, BeritaAcaraStatus, BeritaAcaraStatusLabels,
 } from "@/types/enums";
 
-const CAPACITY_OPTIONS = [25, 50, 75, 100, 150, 200, 250, 300];
+// Selaras dengan tier standar instansi penyelenggara (100–500 peserta/sesi) — backend membulatkan
+// kapasitas ke atas ke kelipatan 100, jadi opsi di luar tier menyesatkan.
+const CAPACITY_OPTIONS = [100, 200, 300, 400, 500];
+
+const CAPACITY_SELECT_OPTIONS: SearchableSelectOption[] = CAPACITY_OPTIONS.map((cap) => ({
+  value: String(cap),
+  label: `${cap} peserta/sesi`,
+}));
+
+const PHOTO_CATEGORY_OPTIONS: SearchableSelectOption[] = Object.values(StagePhotoCategory).map((c) => ({
+  value: c,
+  label: StagePhotoCategoryLabels[c],
+}));
+
+const ITEM_OWNERSHIP_OPTIONS: SearchableSelectOption[] = Object.values(ItemOwnership).map((o) => ({
+  value: o,
+  label: ItemOwnershipLabels[o],
+}));
+
+const ITEM_CONDITION_OPTIONS: SearchableSelectOption[] = Object.values(ItemCondition).map((c) => ({
+  value: c,
+  label: ItemConditionLabels[c],
+}));
 
 // Dokumentasi bisa berupa foto atau video (disimpan di /uploads server)
 function isVideoUrl(url: string): boolean {
@@ -94,7 +115,7 @@ function LocationDetail() {
   const searchParams = useSearchParams();
   const locationId = searchParams.get("id") ?? "";
   const user = useAuthStore((s) => s.user);
-  const { canWrite } = usePermissions();
+  const { canWrite, canUpdateLocation } = usePermissions();
 
   const { data: locResponse, isLoading: locLoading } = useLocationDetail(locationId);
   const { data: stagesResponse, isLoading: stagesLoading } = useLocationStages(locationId);
@@ -151,7 +172,7 @@ function LocationDetail() {
               <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{location.city}, {location.province}</span>
             </div>
           </div>
-          <CapacitySelector locationId={locationId} currentCapacity={location.capacity} canWrite={canWrite} />
+          <CapacitySelector locationId={locationId} currentCapacity={location.capacity} canWrite={canUpdateLocation} />
         </div>
       </div>
 
@@ -250,18 +271,11 @@ function CapacitySelector({ locationId, currentCapacity, canWrite }: { locationI
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Kapasitas Titik Lokasi</Label>
-              <Select value={String(draft)} onValueChange={(v) => setDraft(Number(v))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CAPACITY_OPTIONS.map((cap) => (
-                    <SelectItem key={cap} value={String(cap)}>
-                      {cap} peserta/sesi
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={CAPACITY_SELECT_OPTIONS}
+                value={String(draft)}
+                onValueChange={(v) => setDraft(Number(v))}
+              />
             </div>
             <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
               <p className="font-medium text-foreground">Item yang akan menyesuaikan:</p>
@@ -300,6 +314,8 @@ function StagePanel({
   canWrite: boolean;
 }) {
   const updateStage = useUpdateStage(locationId);
+  const { canManageLocationItems } = usePermissions();
+  const isAutomatic = stage.phase === StagePhase.INSTALASI;
   const addPhoto = useAddStagePhoto(locationId);
   const deletePhoto = useDeleteStagePhoto(locationId);
 
@@ -310,6 +326,10 @@ function StagePanel({
 
   const [progressDraft, setProgressDraft] = useState<number>(stage.progress);
   const [notesDraft, setNotesDraft] = useState<string>(stage.notes ?? "");
+  useEffect(() => {
+    setProgressDraft(stage.progress);
+    setNotesDraft(stage.notes ?? "");
+  }, [stage.id, stage.progress, stage.notes]);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoCategory, setPhotoCategory] = useState<StagePhotoCategory>(defaultPhotoCategory);
@@ -365,7 +385,7 @@ function StagePanel({
   const visiblePhotos = filteredPhotos.slice(photoPage * PHOTOS_PER_PAGE, (photoPage + 1) * PHOTOS_PER_PAGE);
 
   function handleSaveProgress() {
-    updateStage.mutate({ id: stage.id, data: { progress: progressDraft, notes: notesDraft || undefined } });
+    updateStage.mutate({ id: stage.id, data: { ...(isAutomatic ? {} : { progress: progressDraft }), notes: notesDraft } });
   }
 
   return (
@@ -381,7 +401,7 @@ function StagePanel({
             <Badge variant="outline" className={statusColor[stage.status]}>
               {StageStatusLabels[stage.status]}
             </Badge>
-            {canWrite && (
+            {canWrite && !isAutomatic && (
               <div className="flex gap-2">
                 {stage.status === StageStatus.NOT_STARTED && (
                   <Button size="sm" onClick={() => updateStage.mutate({ id: stage.id, data: { status: StageStatus.IN_PROGRESS } })} disabled={updateStage.isPending}>
@@ -412,11 +432,12 @@ function StagePanel({
               type="range" min={0} max={100} step={5}
               value={progressDraft}
               onChange={(e) => setProgressDraft(Number(e.target.value))}
-              disabled={stage.status !== StageStatus.IN_PROGRESS || !canWrite}
+              disabled={isAutomatic || stage.status !== StageStatus.IN_PROGRESS || !canWrite}
               className={`w-full accent-primary ${!canWrite && 'opacity-50 cursor-not-allowed'}`}
             />
           </div>
 
+          {isAutomatic && <p className="text-xs text-muted-foreground">Progres mengikuti barang di halaman Instalasi.</p>}
           <div className="space-y-2">
             <Label>Catatan</Label>
             <Textarea
@@ -509,7 +530,7 @@ function StagePanel({
                         <img src={p.url} alt={p.caption} className="rounded-lg border w-full aspect-[4/3] object-cover" />
                       )}
                       <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {/* Unduh — tersedia untuk semua role termasuk pengawasan BKN */}
+                        {/* Unduh — tersedia untuk semua role termasuk pengawasan instansi */}
                         <a
                           href={p.url}
                           download={downloadName(p)}
@@ -579,7 +600,7 @@ function StagePanel({
         )}
 
         {/* Barang di titik lokasi (tahap persiapan) */}
-        {isPersiapan && <LocationItemsSection locationId={locationId} canWrite={canWrite} />}
+        {isPersiapan && <LocationItemsSection locationId={locationId} canWrite={canManageLocationItems} />}
       </div>
 
       {/* Dialog tambah foto */}
@@ -612,18 +633,14 @@ function StagePanel({
             </div>
             <div className="space-y-2">
               <Label>Kategori Dokumentasi *</Label>
-              <Select value={photoCategory} onValueChange={(v) => setPhotoCategory(v as StagePhotoCategory)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>{StagePhotoCategoryLabels[photoCategory]}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.values(StagePhotoCategory).map((c) => (
-                    <SelectItem key={c} value={c}>{StagePhotoCategoryLabels[c]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={PHOTO_CATEGORY_OPTIONS}
+                value={photoCategory}
+                onValueChange={(v) => setPhotoCategory(v as StagePhotoCategory)}
+                className="w-full"
+              />
               <p className="text-[11px] text-muted-foreground">
-                Pisahkan dokumentasi barang dan sesi ujian sesuai ketentuan BKN.
+                Pisahkan dokumentasi barang dan sesi ujian sesuai ketentuan instansi penyelenggara.
               </p>
             </div>
             <div className="space-y-2">
@@ -703,6 +720,10 @@ function BeritaAcaraSection({
   }
 
   const defaultType = baTypes[0];
+  const baTypeOptions = useMemo<SearchableSelectOption[]>(
+    () => baTypes.map((t) => ({ value: t, label: BeritaAcaraTypeLabels[t] })),
+    [baTypes]
+  );
   const [form, setForm] = useState({
     type: defaultType,
     title: "",
@@ -722,18 +743,11 @@ function BeritaAcaraSection({
     setUploadOpen(true);
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Ukuran file maksimal 10 MB");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((f) => ({ ...f, fileName: file.name, fileUrl: reader.result as string }));
-    };
-    reader.readAsDataURL(file);
+    const dataUrl = await readFileAsDataUrl(file);
+    if (dataUrl) setForm((f) => ({ ...f, fileName: file.name, fileUrl: dataUrl }));
   }
 
   function handleUpload() {
@@ -783,7 +797,7 @@ function BeritaAcaraSection({
                     <p className="text-xs text-muted-foreground font-mono">{ba.documentNumber}</p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <p className="text-xs text-muted-foreground">
-                        {new Date(ba.date).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                        {formatDate(ba.date)}
                       </p>
                       {ba.fileName && (
                         <span className="inline-flex items-center gap-1 text-[10px] text-blue-600">
@@ -795,7 +809,7 @@ function BeritaAcaraSection({
                     {ba.status === BeritaAcaraStatus.FINAL && ba.approvedBy && (
                       <p className="text-[10px] text-emerald-600 mt-0.5">
                         Disetujui oleh {ba.approvedBy.name}
-                        {ba.approvedAt && ` · ${new Date(ba.approvedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}`}
+                        {ba.approvedAt && ` · ${formatDateShort(ba.approvedAt)}`}
                       </p>
                     )}
                     {ba.status === BeritaAcaraStatus.REJECTED && (
@@ -908,21 +922,15 @@ function BeritaAcaraSection({
             {baTypes.length > 1 && (
               <div className="space-y-2">
                 <Label>Jenis BA</Label>
-                <Select
+                <SearchableSelect
+                  options={baTypeOptions}
                   value={form.type}
                   onValueChange={(v) => setForm((f) => ({
                     ...f,
-                    type: (v ?? defaultType) as BeritaAcaraType,
-                    title: `${BeritaAcaraTypeLabels[(v ?? defaultType) as BeritaAcaraType]} - ${locationName}`,
+                    type: (v || defaultType) as BeritaAcaraType,
+                    title: `${BeritaAcaraTypeLabels[(v || defaultType) as BeritaAcaraType]} - ${locationName}`,
                   }))}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {baTypes.map((t) => (
-                      <SelectItem key={t} value={t}>{BeritaAcaraTypeLabels[t]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
             )}
 
@@ -954,6 +962,7 @@ function BeritaAcaraSection({
 // SEKSI BARANG DI TITIK LOKASI (CRUD)
 // ============================================================
 function LocationItemsSection({ locationId, canWrite }: { locationId: string; canWrite: boolean }) {
+  const { canSeedStandardItems } = usePermissions();
   const { data: itemsResponse, isLoading } = useLocationItems(locationId);
   const createItem = useCreateLocationItem(locationId);
   const updateItem = useUpdateLocationItem(locationId);
@@ -1007,7 +1016,7 @@ function LocationItemsSection({ locationId, canWrite }: { locationId: string; ca
           </div>
           {canWrite && (
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setSeedOpen(true)}>
+              <Button size="sm" variant="outline" disabled={!canSeedStandardItems} onClick={() => setSeedOpen(true)}>
                 <PackagePlus className="h-3.5 w-3.5 mr-1" />
                 Isi 38 Item Standar
               </Button>
@@ -1023,7 +1032,7 @@ function LocationItemsSection({ locationId, canWrite }: { locationId: string; ca
           <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : items.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
-            Belum ada barang. Gunakan tombol &ldquo;Isi 38 Item Standar&rdquo; untuk memuat daftar sesuai Lampiran 2 dokumen katalog.
+            Belum ada barang. Gunakan tombol &ldquo;Isi 38 Item Standar&rdquo; untuk memuat daftar sesuai Lampiran E Kepsesma 240/2026.
           </p>
         ) : (
           <div className="max-h-96 overflow-y-auto rounded border">
@@ -1084,21 +1093,11 @@ function LocationItemsSection({ locationId, canWrite }: { locationId: string; ca
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Kapasitas Titik Lokasi</Label>
-              <Select
+              <SearchableSelect
+                options={CAPACITY_SELECT_OPTIONS}
                 value={String(selectedCapacity)}
                 onValueChange={(v) => setSelectedCapacity(Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CAPACITY_OPTIONS.map((cap) => (
-                    <SelectItem key={cap} value={String(cap)}>
-                      {cap} peserta/sesi
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
               <p className="font-medium text-foreground">Item yang menyesuaikan kapasitas:</p>
@@ -1141,25 +1140,19 @@ function LocationItemsSection({ locationId, canWrite }: { locationId: string; ca
               </div>
               <div className="space-y-2">
                 <Label>Kepemilikan</Label>
-                <Select value={form.ownership} onValueChange={(v) => setForm((f) => ({ ...f, ownership: (v ?? ItemOwnership.SEWA) as ItemOwnership }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.values(ItemOwnership).map((o) => (
-                      <SelectItem key={o} value={o}>{ItemOwnershipLabels[o]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={ITEM_OWNERSHIP_OPTIONS}
+                  value={form.ownership}
+                  onValueChange={(v) => setForm((f) => ({ ...f, ownership: (v || ItemOwnership.SEWA) as ItemOwnership }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Kondisi</Label>
-                <Select value={form.condition} onValueChange={(v) => setForm((f) => ({ ...f, condition: (v ?? ItemCondition.BAIK) as ItemCondition }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.values(ItemCondition).map((c) => (
-                      <SelectItem key={c} value={c}>{ItemConditionLabels[c]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={ITEM_CONDITION_OPTIONS}
+                  value={form.condition}
+                  onValueChange={(v) => setForm((f) => ({ ...f, condition: (v || ItemCondition.BAIK) as ItemCondition }))}
+                />
               </div>
             </div>
             <div className="space-y-2">

@@ -99,7 +99,7 @@ enum StageStatus {
   COMPLETED
 }
 
-// Kategori dokumentasi foto/video pada tahapan (spesifikasi BKN:
+// Kategori dokumentasi foto/video pada tahapan (spesifikasi instansi penyelenggara:
 // "foto dan video barang" vs "foto dan video sesi ujian").
 enum StagePhotoCategory {
   BARANG
@@ -152,7 +152,7 @@ enum PersonnelRole {
   TENAGA_IT
   ELEKTRIKAL
   TENAGA_SARPRAS
-  PENGAWAS_BKN
+  PENGAWAS_INSTANSI
 }
 
 enum DocumentCategory {
@@ -162,6 +162,11 @@ enum DocumentCategory {
   LAPORAN
   FOTO_DOKUMENTASI
   LAINNYA
+}
+
+enum RegencyType {
+  KABUPATEN
+  KOTA
 }
 
 // ============================================================
@@ -188,7 +193,6 @@ model User {
   assignedTickets       IncidentTicket[]    @relation("AssignedTechnician")
   reportedTickets       IncidentTicket[]    @relation("TicketReporter")
   createdShipments      LogisticsShipment[]
-  attendanceScans       AttendanceLog[]     @relation("Scanner")
   createdBeritaAcara    BeritaAcara[]
   approvedBeritaAcara   BeritaAcara[]       @relation("BeritaAcaraApprover")
   uploadedDocuments     LocationDocument[]
@@ -229,7 +233,6 @@ model Location {
   installationProgress InstallationProgress[]
   inventoryChecklists  InventoryChecklist[]
   incidentTickets      IncidentTicket[]
-  attendanceLogs       AttendanceLog[]
   shipments            LogisticsShipment[]
   stages               LocationStage[]
   beritaAcara          BeritaAcara[]
@@ -378,32 +381,6 @@ model LogisticsShipment {
 }
 
 // ============================================================
-// ATTENDANCE
-// ============================================================
-
-model AttendanceLog {
-  id              String   @id @default(uuid())
-  locationId      String
-  location        Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
-
-  participantId   String
-  barcodeValue    String   @unique
-  participantName String
-  session         Int
-  scanTime        DateTime @default(now())
-  notes           String?
-
-  scannedBy String
-  scanner   User   @relation("Scanner", fields: [scannedBy], references: [id])
-
-  createdAt DateTime @default(now())
-
-  @@index([locationId, session])
-  @@index([barcodeValue])
-  @@index([scanTime])
-}
-
-// ============================================================
 // TAHAPAN KERJA (STAGES)
 // ============================================================
 
@@ -520,14 +497,49 @@ model LocationItem {
 // PERSONEL SDM
 // ============================================================
 
+enum Gender {
+  LAKI_LAKI
+  PEREMPUAN
+}
+
+// Jenjang pendidikan — Kepsesma 240/2026 huruf G.1 poin 8 mensyaratkan
+// tenaga teknis minimal SMA sederajat, sehingga opsi dimulai dari SMA/SMK.
+enum EducationLevel {
+  SMA_SMK
+  D3
+  S1
+  S2
+}
+
 model Personnel {
   id         String        @id @default(uuid())
-  locationId String
-  location   Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  // Penugasan titik lokasi — nullable: tenaga teknis bisa terdaftar di
+  // master tanpa penugasan, lalu ditugaskan/dipindahkan antar tilok.
+  locationId String?
+  location   Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
   name       String
   role       PersonnelRole
   phone      String?
   notes      String?
+
+  // ── Data pribadi ──
+  nik        String?
+  birthPlace String?
+  birthDate  DateTime?
+  gender     Gender?
+  address    String?
+  email      String?
+
+  // ── Pendidikan & ijazah (min. SMA sederajat sesuai Kepsesma) ──
+  educationLevel       EducationLevel?
+  educationMajor       String?
+  educationInstitution String?
+  diplomaFileUrl       String? // file ijazah ter-upload
+  diplomaFileName      String?
+
+  // ── Honor & rekomendasi ──
+  honorPerDay     Decimal?       @db.Decimal(14, 2) // honor per hari kegiatan (Rp)
+  recommendedRole PersonnelRole? // grade jabatan yang direkomendasikan
 
   attendances PersonnelAttendance[]
 
@@ -581,17 +593,25 @@ model LocationDocument {
 
 // ============================================================
 // MASTER DATA — STANDAR ITEM & TENAGA TEKNIS PER KAPASITAS
-// Sumber: Dokumen Pengumuman Katalog Elektronik Sektoral BKN
-// No 113/D23/DPPP/04/2026 (Lampiran 2 — 38 item standar) dan
-// BAB 4 atribut 2.3 Tenaga Teknis (tier 100–500 peserta/sesi).
+// Sumber: Kepsesma BKN No 240 Tahun 2026 — Lampiran E
+// (38 item standar) dan huruf D.4.e Tenaga Teknis
+// (tier 100–500 peserta/sesi).
 // ============================================================
 
+// Kategori sarana prasarana — dasar pemetaan vendor per kategori
+// (vendor rental IT vs vendor perlengkapan event/non-IT).
+enum SarprasCategory {
+  SARPRAS_IT
+  SARPRAS_NON_IT
+}
+
 model MasterItem {
-  id        String        @id @default(uuid())
-  no        Int           @unique // urutan sesuai Lampiran 2
+  id        String          @id @default(uuid())
+  no        Int             @unique // urutan sesuai Lampiran E Kepsesma 240/2026
   name      String
   unit      String
-  ownership ItemOwnership @default(SEWA)
+  ownership ItemOwnership   @default(SEWA)
+  category  SarprasCategory @default(SARPRAS_NON_IT)
 
   // Kuantitas standar per tier kapasitas (peserta per sesi)
   qty100 Int
@@ -602,6 +622,8 @@ model MasterItem {
 
   isActive Boolean @default(true)
   notes    String?
+
+  vendorItems VendorItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -640,4 +662,119 @@ model AuditLog {
   @@index([userId])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+// ============================================================
+// MASTER DATA — WILAYAH INDONESIA (Provinsi & Kabupaten/Kota)
+// ============================================================
+
+model Province {
+  id   String @id @default(uuid())
+  code String @unique // kode Kemendagri, mis. '11'
+  name String @unique
+
+  regencies       Regency[]
+  vendorDomiciles Vendor[]         @relation("VendorDomicile")
+  vendorCoverages VendorCoverage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// PENGADAAN — FASE 1: MASTER VENDOR REKANAN
+// Vendor pemasok sarpras (IT / Non IT) milik penyedia katalog.
+// Cakupan wilayah many-to-many: satu vendor bisa melayani banyak
+// provinsi, satu provinsi bisa dilayani banyak vendor.
+// ============================================================
+
+model Vendor {
+  id         String            @id @default(uuid())
+  code       String            @unique // auto: VDR-0001
+  name       String
+  categories SarprasCategory[] // IT saja, Non IT saja, atau keduanya
+
+  npwp    String?
+  nib     String?
+  kbli    String?
+  address String?
+
+  provinceId String?
+  province   Province? @relation("VendorDomicile", fields: [provinceId], references: [id], onDelete: SetNull)
+
+  picName  String?
+  picPhone String?
+  email    String?
+
+  rating   Int? // 1-5 penilaian kinerja internal
+  isActive Boolean @default(true)
+  notes    String?
+
+  coverages VendorCoverage[]
+  items     VendorItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// Satuan harga vendor: per hari kegiatan (dikali jumlah hari) atau
+// per event (flat sekali per kegiatan, tidak tergantung jumlah hari).
+enum PriceUnit {
+  PER_HARI
+  PER_EVENT
+}
+
+// Katalog barang & harga vendor: item yang sanggup dipasok vendor
+// (mengacu MasterItem), jumlah maksimal, harga satuan + satuannya.
+// Menjadi dasar pemilihan harga terbaik saat menyusun penawaran.
+model VendorItem {
+  id       String @id @default(uuid())
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  masterItemId String
+  masterItem   MasterItem @relation(fields: [masterItemId], references: [id], onDelete: Cascade)
+
+  qty       Int // jumlah maksimal yang sanggup dipasok
+  unitPrice Decimal   @db.Decimal(14, 2) // harga satuan
+  priceUnit PriceUnit @default(PER_HARI) // per hari / per event
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([vendorId, masterItemId])
+  @@index([masterItemId])
+}
+
+model VendorCoverage {
+  id       String @id @default(uuid())
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  provinceId String
+  province   Province @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([vendorId, provinceId])
+  @@index([provinceId])
+}
+
+model Regency {
+  id   String      @id @default(uuid())
+  code String      @unique // kode Kemendagri, mis. '11.01'
+  name String
+  type RegencyType
+
+  provinceId String
+  province   Province @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provinceId, name])
+  @@index([provinceId])
 }

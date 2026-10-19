@@ -19,9 +19,9 @@ import type { Location, LocationItem } from "@/types/models";
 
 type LocStatus = 'belum' | 'berjalan' | 'selesai';
 
-function getLocStatus(pct: number, hasItems: boolean): LocStatus {
-  if (!hasItems || pct === 0) return 'belum';
-  if (pct >= 100) return 'selesai';
+function getLocStatus(items: LocationItem[]): LocStatus {
+  if (!items.some((item) => item.installationPct > 0)) return 'belum';
+  if (items.every((item) => item.installationPct === 100)) return 'selesai';
   return 'berjalan';
 }
 
@@ -172,7 +172,7 @@ function LocationInstallCard({
   const [editItem, setEditItem] = useState<LocationItem | null>(null);
 
   const overall = calcOverall(items);
-  const locStatus = getLocStatus(overall, items.length > 0);
+  const locStatus = getLocStatus(items);
   const style = LOC_STATUS_STYLE[locStatus];
 
   const doneCount = items.filter((i) => i.installationPct === 100).length;
@@ -335,22 +335,25 @@ function LocationInstallCard({
 export default function InstallationsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<LocStatus | "ALL">("ALL");
-  const { canWrite } = usePermissions();
+  const { canUpdateInstallation: canWrite } = usePermissions();
 
   const { data: itemsResponse, isLoading: itemsLoading } = useAllLocationItems();
   const { data: locResponse, isLoading: locLoading } = useLocations({});
 
-  const allItems: LocationItem[] = itemsResponse?.data ?? [];
-  const allLocations: Location[] = locResponse?.data ?? [];
-
   const locationData = useMemo(() => {
+    const allItems = itemsResponse?.data ?? [];
+    const allLocations = locResponse?.data ?? [];
+    const byLocation = new Map<string, LocationItem[]>();
+    for (const item of allItems) {
+      const list = byLocation.get(item.locationId) ?? [];
+      list.push(item);
+      byLocation.set(item.locationId, list);
+    }
     return allLocations.map((loc) => {
-      const items = allItems.filter((i) => i.locationId === loc.id);
-      const overall = calcOverall(items);
-      const status = getLocStatus(overall, items.length > 0);
-      return { loc, items, overall, status };
+      const items = byLocation.get(loc.id) ?? [];
+      return { loc, items, overall: calcOverall(items), status: getLocStatus(items) };
     });
-  }, [allLocations, allItems]);
+  }, [locResponse?.data, itemsResponse?.data]);
 
   const filtered = useMemo(() => {
     return locationData.filter((d) => {

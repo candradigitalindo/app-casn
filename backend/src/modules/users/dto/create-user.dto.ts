@@ -25,7 +25,7 @@ export class CreateUserDto {
   @IsString()
   phone?: string;
 
-  @ApiPropertyOptional({ example: 'BKN Pusat' })
+  @ApiPropertyOptional({ example: 'Instansi Pusat' })
   @IsOptional()
   @IsString()
   instansi?: string;

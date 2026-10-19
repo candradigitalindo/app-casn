@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
+import { OPERATIONAL_ROLES } from '../../common/constants/roles';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { StagesService } from './stages.service';
 import { UpdateStageDto, AddStagePhotoDto } from './stages.dto';
@@ -12,8 +14,8 @@ export class StagesController {
   constructor(private readonly service: StagesService) {}
 
   @Get('summary')
-  getAllSummary() {
-    return this.service.getAllSummary();
+  getAllSummary(@Query('locationId') locationId?: string) {
+    return this.service.getAllSummary(locationId);
   }
 
   @Get('location/:locationId')
@@ -22,16 +24,19 @@ export class StagesController {
   }
 
   @Patch(':id')
+  @Roles(...OPERATIONAL_ROLES)
   update(@Param('id') id: string, @Body() dto: UpdateStageDto, @CurrentUser() user: User) {
     return this.service.update(id, dto, user.id);
   }
 
   @Post(':id/photos')
+  @Roles(...OPERATIONAL_ROLES)
   addPhoto(@Param('id') id: string, @Body() dto: AddStagePhotoDto, @CurrentUser() user: User) {
     return this.service.addPhoto(id, dto, user.id);
   }
 
   @Delete(':stageId/photos/:photoId')
+  @Roles(...OPERATIONAL_ROLES)
   deletePhoto(@Param('stageId') stageId: string, @Param('photoId') photoId: string) {
     return this.service.deletePhoto(stageId, photoId);
   }

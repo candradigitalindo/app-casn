@@ -2,8 +2,9 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useWebSocket } from '@/lib/hooks/useWebSocket';
+import { useAuthStore } from '@/lib/stores/auth';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -23,8 +24,7 @@ export function QueryProvider({ children }: ProvidersProps) {
           queries: {
             // Time data remains fresh (5 minutes)
             staleTime: 5 * 60 * 1000,
-            // Cache data forever (until manually invalidated)
-            gcTime: Infinity,
+            gcTime: 10 * 60 * 1000,
             // Retry failed requests once
             retry: 1,
             // Don't refetch on window focus by default
@@ -33,12 +33,18 @@ export function QueryProvider({ children }: ProvidersProps) {
             refetchOnMount: true,
           },
           mutations: {
-            // Retry failed mutations once
-            retry: 1,
+            // Jangan retry mutasi: POST non-idempoten (buat tiket/pengiriman)
+            // bisa tereksekusi dua kali bila respons pertama gagal/timeout.
+            retry: 0,
           },
         },
       })
   );
+
+  // Hapus cache saat logout/pergantian akun sebelum akun berikutnya membaca data.
+  useEffect(() => useAuthStore.subscribe((state, previous) => {
+    if (state.user?.id !== previous.user?.id) queryClient.clear();
+  }), [queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -17,11 +17,12 @@ import { IncidentsModule } from './modules/incidents/incidents.module';
 import { InstallationsModule } from './modules/installations/installations.module';
 import { StagesModule } from './modules/stages/stages.module';
 import { BeritaAcaraModule } from './modules/berita-acara/berita-acara.module';
-import { AttendanceModule } from './modules/attendance/attendance.module';
 import { PersonnelModule } from './modules/personnel/personnel.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EventsModule } from './modules/events/events.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { MasterDataModule } from './modules/master-data/master-data.module';
+import { VendorsModule } from './modules/vendors/vendors.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { JobsModule } from './jobs/jobs.module';
 
@@ -96,13 +97,14 @@ const FRONTEND_DIST =
     BeritaAcaraModule,
 
     // Phase 4
-    AttendanceModule,
     PersonnelModule,
     DocumentsModule,
 
     // Phase 5
     ReportsModule,
     UploadsModule,
+    MasterDataModule,
+    VendorsModule,
     JobsModule,
   ],
   providers: [

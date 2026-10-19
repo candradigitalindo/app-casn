@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { ok } from '../../common/dto/api-response.dto';
 import { UpdateStageDto, AddStagePhotoDto } from './stages.dto';
@@ -22,30 +22,23 @@ export class StagesService {
     const location = await this.prisma.location.findUnique({ where: { id: locationId } });
     if (!location) throw new NotFoundException('Lokasi tidak ditemukan');
 
-    // Seed stages if none exist yet
-    const existing = await this.prisma.locationStage.findMany({
+    // Upsert satu fase instalasi bisa mendahului akses halaman tahapan.
+    // Lengkapi fase yang hilang; aman ketika dua klien membuka bersamaan.
+    await this.prisma.locationStage.createMany({
+      data: PHASES.map((phase) => ({ locationId, phase })),
+      skipDuplicates: true,
+    });
+    const stages = await this.prisma.locationStage.findMany({
       where: { locationId },
       include: { photos: true },
       orderBy: { phase: 'asc' },
     });
-
-    if (existing.length === 0) {
-      await this.prisma.locationStage.createMany({
-        data: PHASES.map((phase) => ({ locationId, phase })),
-      });
-      const seeded = await this.prisma.locationStage.findMany({
-        where: { locationId },
-        include: { photos: true },
-        orderBy: { phase: 'asc' },
-      });
-      return ok(seeded);
-    }
-
-    return ok(existing);
+    return ok(stages);
   }
 
-  async getAllSummary() {
+  async getAllSummary(locationId?: string) {
     const locations = await this.prisma.location.findMany({
+      where: locationId ? { id: locationId } : {},
       select: {
         id: true,
         name: true,
@@ -61,7 +54,7 @@ export class StagesService {
         locationId: loc.id,
         locationName: loc.name,
         province: loc.province,
-        currentPhase: inProgress?.phase ?? (completed === PHASES.length ? 'SERAH_TERIMA' : 'PERSIAPAN'),
+        currentPhase: inProgress?.phase ?? PHASES.find((phase) => !loc.stages.some((s) => s.phase === phase && s.status === 'COMPLETED')) ?? 'SERAH_TERIMA',
         completedPhases: completed,
         totalPhases: PHASES.length,
       };
@@ -74,15 +67,30 @@ export class StagesService {
     const stage = await this.prisma.locationStage.findUnique({ where: { id } });
     if (!stage) throw new NotFoundException('Tahapan tidak ditemukan');
 
-    const data: any = {};
-    if (dto.status !== undefined) data.status = dto.status;
-    if (dto.progress !== undefined) data.progress = dto.progress;
-    if (dto.notes !== undefined) data.notes = dto.notes;
+    if (stage.phase === 'INSTALASI' && (dto.status !== undefined || dto.progress !== undefined)) {
+      throw new BadRequestException('Progres tahap instalasi mengikuti barang di lokasi. Perbarui melalui halaman Instalasi.');
+    }
 
-    if (dto.status === StageStatus.IN_PROGRESS && !stage.startedAt) data.startedAt = new Date();
-    if (dto.status === StageStatus.COMPLETED) {
-      data.completedAt = new Date();
-      if (userId) data.completedById = userId;
+    const status = dto.status ?? stage.status;
+    const data: any = { ...dto };
+    if (status === StageStatus.COMPLETED) {
+      data.progress = 100;
+      data.startedAt = stage.startedAt ?? new Date();
+      data.completedAt = stage.completedAt ?? new Date();
+      data.completedById = stage.completedById ?? userId ?? null;
+    } else if (status === StageStatus.NOT_STARTED) {
+      data.progress = 0;
+      data.startedAt = null;
+      data.completedAt = null;
+      data.completedById = null;
+    } else {
+      data.startedAt = stage.startedAt ?? new Date();
+      data.completedAt = null;
+      data.completedById = null;
+      // Buka kembali fase selesai agar tidak tetap menampilkan 100%.
+      if (dto.status === StageStatus.IN_PROGRESS && stage.status === StageStatus.COMPLETED && dto.progress === undefined) {
+        data.progress = 0;
+      }
     }
 
     const updated = await this.prisma.locationStage.update({
@@ -107,7 +115,7 @@ export class StagesService {
         caption: dto.caption,
         category: dto.category ?? 'UMUM',
         takenAt: new Date(dto.takenAt),
-        uploadedBy: dto.uploadedBy ?? userId ?? 'system',
+        uploadedBy: userId ?? 'system',
       },
     });
 

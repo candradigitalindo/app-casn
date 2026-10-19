@@ -1,4 +1,4 @@
-import { apiClient, ApiResponse } from '../api-client';
+import { apiClient } from '../api-client';
 import type { Location, DashboardStats } from '@/types/models';
 import { LocationStatus } from '@/types/enums';
 
@@ -10,21 +10,6 @@ export interface LocationQuery {
   search?: string;
   page?: number;
   limit?: number;
-}
-
-export interface LocationStatsResponse {
-  total: number;
-  byStatus: Record<LocationStatus, number>;
-  byProvince: Record<string, number>;
-}
-
-export interface ProvinceData {
-  province: string;
-  total: number;
-  ready: number;
-  active: number;
-  issues: number;
-  preparation: number;
 }
 
 // API Service
@@ -39,25 +24,9 @@ export const locationsApi = {
   getLocation: (id: string) =>
     apiClient.get<Location>(`/api/v1/locations/${id}`),
 
-  // Get location installation progress
-  getLocationInstallations: (id: string) =>
-    apiClient.get<any>(`/api/v1/locations/${id}/installations`),
-
   // Get national dashboard stats
   getNationalStats: () =>
     apiClient.get<DashboardStats>('/api/v1/locations/stats/summary'),
-
-  // Get stats by province
-  getProvinceStats: (): Promise<ApiResponse<ProvinceData[]>> =>
-    apiClient.get('/api/v1/locations/stats/province'),
-
-  // Get geo boundaries for map
-  getGeoBoundaries: () =>
-    apiClient.get<any>('/api/v1/locations/geo/boundaries'),
-
-  // Update location status
-  updateLocationStatus: (id: string, status: LocationStatus) =>
-    apiClient.patch<Location>(`/api/v1/locations/${id}`, { status }),
 
   // Create location (admin only)
   createLocation: (data: Partial<Location>) =>

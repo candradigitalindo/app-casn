@@ -80,14 +80,8 @@ export const beritaAcaraApi = {
   getAll: (query: { locationId?: string; type?: BeritaAcaraType } = {}): Promise<ApiResponse<BeritaAcara[]>> =>
     apiClient.get('/api/v1/berita-acara', { params: query }),
 
-  get: (id: string): Promise<ApiResponse<BeritaAcara>> =>
-    apiClient.get(`/api/v1/berita-acara/${id}`),
-
   create: (data: CreateBeritaAcaraDto): Promise<ApiResponse<BeritaAcara>> =>
     apiClient.post('/api/v1/berita-acara', data),
-
-  update: (id: string, data: Partial<BeritaAcara>): Promise<ApiResponse<BeritaAcara>> =>
-    apiClient.patch(`/api/v1/berita-acara/${id}`, data),
 
   delete: (id: string): Promise<ApiResponse<void>> =>
     apiClient.delete(`/api/v1/berita-acara/${id}`),

@@ -8,6 +8,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { LocationScopeGuard } from '../../common/guards/location-scope.guard';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
     // Guard JWT aktif secara global — endpoint yang tidak butuh auth diberi @Public()
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: LocationScopeGuard },
   ],
   exports: [AuthService],
 })

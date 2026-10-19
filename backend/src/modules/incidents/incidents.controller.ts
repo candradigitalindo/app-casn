@@ -1,9 +1,11 @@
+import { OPERATIONAL_ROLES } from '../../common/constants/roles';
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { IncidentsService } from './incidents.service';
 import { CreateTicketDto, AssignTicketDto, UpdateStatusDto, AddNoteDto, EscalateDto, TicketQueryDto } from './incidents.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { User } from '@prisma/client';
 
 @ApiTags('Incidents')
@@ -13,13 +15,13 @@ export class IncidentsController {
   constructor(private readonly service: IncidentsService) {}
 
   @Get('tickets/sla/overdue')
-  getOverdue() {
-    return this.service.getOverdue();
+  getOverdue(@Query('locationId') locationId?: string) {
+    return this.service.getOverdue(locationId);
   }
 
   @Get('tickets/sla/stats')
-  getSLAStats() {
-    return this.service.getSLAStats();
+  getSLAStats(@Query('locationId') locationId?: string) {
+    return this.service.getSLAStats(locationId);
   }
 
   @Get('tickets')
@@ -38,21 +40,25 @@ export class IncidentsController {
   }
 
   @Patch('tickets/:id/assign')
+  @Roles(...OPERATIONAL_ROLES)
   assign(@Param('id') id: string, @Body() dto: AssignTicketDto) {
     return this.service.assign(id, dto);
   }
 
   @Patch('tickets/:id/status')
+  @Roles(...OPERATIONAL_ROLES)
   updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto) {
     return this.service.updateStatus(id, dto);
   }
 
   @Post('tickets/:id/notes')
+  @Roles(...OPERATIONAL_ROLES)
   addNote(@Param('id') id: string, @Body() dto: AddNoteDto) {
     return this.service.addNote(id, dto);
   }
 
   @Post('tickets/:id/escalate')
+  @Roles(...OPERATIONAL_ROLES)
   escalate(@Param('id') id: string, @Body() dto: EscalateDto) {
     return this.service.escalate(id, dto);
   }
@@ -66,6 +72,7 @@ export class IncidentsController {
   }
 
   @Delete('tickets/:id')
+  @Roles(...OPERATIONAL_ROLES)
   remove(@Param('id') id: string) {
     return this.service.remove(id);
   }

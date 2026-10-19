@@ -35,8 +35,8 @@ export class LogisticsController {
 
   @Get('shipments/summary')
   @ApiOperation({ summary: 'Ringkasan status pengiriman' })
-  async getShipmentSummary() {
-    const data = await this.svc.getShipmentSummary();
+  async getShipmentSummary(@Query('locationId') locationId?: string) {
+    const data = await this.svc.getShipmentSummary(locationId);
     return ok(data);
   }
 
@@ -130,8 +130,8 @@ export class LogisticsController {
 
   @Get('inventory/buffer-stock')
   @ApiOperation({ summary: 'Ketersediaan stok cadangan seluruh item' })
-  async getBufferStock() {
-    const data = await this.svc.getBufferStock();
+  async getBufferStock(@Query('locationId') locationId?: string) {
+    const data = await this.svc.getBufferStock(locationId);
     return ok(data);
   }
 }

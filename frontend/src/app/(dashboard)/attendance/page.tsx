@@ -10,31 +10,36 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+  SearchableSelect, type SearchableSelectOption,
+} from "@/components/ui/searchable-select";
 import {
-  Users, Plus, Pencil, Trash2, ChevronDown, ChevronUp,
+  Users, Plus, Pencil, ChevronDown, ChevronUp,
   CalendarDays, CheckCircle2, XCircle, User, Phone,
   AlertCircle, Loader2, Download, ClipboardList, MapPin,
-  FileUp, Eye,
+  FileUp, Eye, UserPlus, UserMinus,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  PersonnelRole, PersonnelRoleLabels, PersonnelRoleColors, STAFF_REQUIREMENTS,
+  PersonnelRole, PersonnelRoleLabels, PersonnelRoleColors,
 } from "@/types/enums";
 import {
   usePersonnel, usePersonnelAttendance, useAllPersonnelAttendance,
-  useCreatePersonnel, useUpdatePersonnel, useDeletePersonnel, useUpsertAttendance,
-  useDeleteAttendance, usePermissions, usePersonnelSummary,
+  useCreatePersonnel, useUpdatePersonnel, useUpsertAttendance,
+  useDeleteAttendance, usePermissions, usePersonnelSummary, usePersonnelRequirements,
+  useAllPersonnel, useSavePersonnel,
 } from "@/lib/hooks";
 import { useLocations } from "@/lib/hooks";
 import type { Location, Personnel, PersonnelAttendance } from "@/types/models";
+import type { PersonnelRequirement } from "@/lib/api/master-data";
+import { todayDateInput, toDateInputValue, readFileAsDataUrl } from "@/lib/format";
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────
+// Tanggal "hari ini" menurut zona waktu perangkat (bukan UTC) — antara
+// 00:00–07:00 WIB, toISOString() masih menunjuk hari kalender sebelumnya.
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return todayDateInput();
 }
 
 function dateRange(start: string, end: string): string[] {
@@ -52,11 +57,28 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
 
-function getRequirement(capacity: number): Record<PersonnelRole, number> {
-  const caps = [100, 200, 300, 400, 500];
-  const match = caps.find((c) => capacity <= c) ?? 500;
-  return STAFF_REQUIREMENTS[match] ?? STAFF_REQUIREMENTS[100];
+// Kebutuhan tenaga teknis per tier diambil dari master data backend
+// (huruf D.4.e Kepsesma 240/2026). Pengawas lapangan berasal dari instansi
+// penyelenggara sehingga tidak menjadi kewajiban staffing penyedia (target 0).
+function getRequirement(
+  capacity: number,
+  tiers: PersonnelRequirement[],
+): Record<PersonnelRole, number> {
+  const sorted = [...tiers].sort((a, b) => a.capacity - b.capacity);
+  const match = sorted.find((t) => capacity <= t.capacity) ?? sorted[sorted.length - 1];
+  return {
+    [PersonnelRole.KOORDINATOR]: match?.koordinator ?? 0,
+    [PersonnelRole.TENAGA_IT]: match?.tenagaIt ?? 0,
+    [PersonnelRole.ELEKTRIKAL]: match?.elektrikal ?? 0,
+    [PersonnelRole.TENAGA_SARPRAS]: match?.sarpras ?? 0,
+    [PersonnelRole.PENGAWAS_INSTANSI]: 0,
+  };
 }
+
+const ROLE_OPTIONS: SearchableSelectOption[] = Object.values(PersonnelRole).map((r) => ({
+  value: r,
+  label: PersonnelRoleLabels[r],
+}));
 
 // ─────────────────────────────────────────────────────────────
 // Dialog CRUD Tenaga Teknis
@@ -99,14 +121,12 @@ function PersonnelDialog({
           </div>
           <div className="space-y-1.5">
             <Label className="text-[10px] font-bold text-muted-foreground uppercase">Posisi *</Label>
-            <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v as PersonnelRole }))}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.values(PersonnelRole).map((r) => (
-                  <SelectItem key={r} value={r} className="text-sm">{PersonnelRoleLabels[r]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={ROLE_OPTIONS}
+              value={form.role}
+              onValueChange={(v) => setForm((f) => ({ ...f, role: v as PersonnelRole }))}
+              className="h-9 text-sm"
+            />
           </div>
           <div className="space-y-1.5">
             <Label className="text-[10px] font-bold text-muted-foreground uppercase">No. HP</Label>
@@ -203,7 +223,12 @@ function LocationAttendanceCard({ location }: { location: Location }) {
 
   const createPersonnel = useCreatePersonnel(location.id);
   const updatePersonnel = useUpdatePersonnel(location.id);
-  const deletePersonnel = useDeletePersonnel(location.id);
+  // Penugasan/lepas penugasan lewat master (invalidasi semua query personel)
+  const savePersonnel = useSavePersonnel();
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignId, setAssignId] = useState("");
+  const { data: unassignedRes } = useAllPersonnel({ unassigned: true });
+  const unassigned: Personnel[] = unassignedRes?.data ?? [];
   const upsertAttendance = useUpsertAttendance(location.id, selectedDate);
   const deleteAttendance = useDeleteAttendance(location.id, selectedDate);
   const [proofView, setProofView] = useState<{ att: PersonnelAttendance; name: string } | null>(null);
@@ -220,7 +245,8 @@ function LocationAttendanceCard({ location }: { location: Location }) {
 
   const dateInRange = dates.length === 0 || dates.includes(selectedDate);
 
-  const requirement = getRequirement(location.capacity);
+  const { data: requirementsRes } = usePersonnelRequirements();
+  const requirement = getRequirement(location.capacity, requirementsRes?.data ?? []);
   const totalRequired = Object.values(requirement).reduce((a, b) => a + b, 0);
   const presentCount = Object.values(attendanceMap).filter((a) => a.present).length;
 
@@ -240,26 +266,20 @@ function LocationAttendanceCard({ location }: { location: Location }) {
 
   // Absensi model upload: admin mengunggah bukti kehadiran per orang.
   // Ada bukti = hadir; hapus bukti = catatan kehadiran dihapus.
-  function handleProofFile(p: Personnel, e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleProofFile(p: Personnel, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Ukuran file maksimal 10 MB");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      upsertAttendance.mutate({
-        personnelId: p.id,
-        locationId: location.id,
-        date: selectedDate,
-        present: true,
-        fileUrl: reader.result as string,
-        fileName: file.name,
-      });
-    };
-    reader.readAsDataURL(file);
+    const dataUrl = await readFileAsDataUrl(file);
+    if (!dataUrl) return;
+    upsertAttendance.mutate({
+      personnelId: p.id,
+      locationId: location.id,
+      date: selectedDate,
+      present: true,
+      fileUrl: dataUrl,
+      fileName: file.name,
+    });
   }
 
   function handleDeleteProof(p: Personnel) {
@@ -270,7 +290,7 @@ function LocationAttendanceCard({ location }: { location: Location }) {
   }
 
   const roleOrder: PersonnelRole[] = [
-    PersonnelRole.PENGAWAS_BKN, PersonnelRole.KOORDINATOR, PersonnelRole.TENAGA_IT,
+    PersonnelRole.PENGAWAS_INSTANSI, PersonnelRole.KOORDINATOR, PersonnelRole.TENAGA_IT,
     PersonnelRole.ELEKTRIKAL, PersonnelRole.TENAGA_SARPRAS,
   ];
 
@@ -368,14 +388,23 @@ function LocationAttendanceCard({ location }: { location: Location }) {
               ))}
             </div>
             {canWrite && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs mb-1"
-                onClick={() => { setEditing(null); setDialogOpen(true); }}
-              >
-                <Plus className="h-3 w-3 mr-1" /> Tambah Tenaga Teknis
-              </Button>
+              <div className="flex gap-2 mb-1">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => { setAssignId(""); setAssignOpen(true); }}
+                >
+                  <UserPlus className="h-3 w-3 mr-1" /> Tugaskan
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => { setEditing(null); setDialogOpen(true); }}
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Tambah Baru
+                </Button>
+              </div>
             )}
           </div>
 
@@ -401,8 +430,8 @@ function LocationAttendanceCard({ location }: { location: Location }) {
                 <Input
                   type="date"
                   value={selectedDate}
-                  min={location.startDate || undefined}
-                  max={location.endDate || undefined}
+                  min={toDateInputValue(location.startDate) || undefined}
+                  max={toDateInputValue(location.endDate) || undefined}
                   onChange={(e) => setSelectedDate(e.target.value)}
                   className="h-7 text-xs w-36"
                 />
@@ -487,9 +516,9 @@ function LocationAttendanceCard({ location }: { location: Location }) {
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
                               <button className="p-1.5 rounded hover:bg-red-50 transition-colors text-muted-foreground hover:text-red-600"
-                                title="Hapus personel"
+                                title="Lepas penugasan dari lokasi ini"
                                 onClick={() => setDeleteTarget(p.id)}>
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <UserMinus className="h-3.5 w-3.5" />
                               </button>
                             </>
                           )}
@@ -636,25 +665,77 @@ function LocationAttendanceCard({ location }: { location: Location }) {
         />
       )}
 
-      {/* Delete confirm */}
+      {/* Dialog Tugaskan — pilih dari master yang belum ditugaskan */}
+      <Dialog open={assignOpen} onOpenChange={(v) => { if (!v) setAssignOpen(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Tugaskan Tenaga Teknis — {location.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {unassigned.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Tidak ada tenaga teknis yang belum ditugaskan. Daftarkan dulu di menu
+                {" "}<span className="font-medium">Tenaga Teknis</span>, atau lepas penugasan dari lokasi lain.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                  Pilih dari master (belum ditugaskan)
+                </Label>
+                <SearchableSelect
+                  options={unassigned.map((p) => ({
+                    value: p.id,
+                    label: `${p.name} — ${PersonnelRoleLabels[p.role]}`,
+                  }))}
+                  value={assignId || null}
+                  onValueChange={setAssignId}
+                  placeholder="Pilih tenaga teknis..."
+                  searchPlaceholder="Cari nama..."
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setAssignOpen(false)}>Batal</Button>
+            <Button
+              size="sm"
+              disabled={!assignId || savePersonnel.isPending}
+              onClick={() => savePersonnel.mutate(
+                { id: assignId, data: { locationId: location.id } },
+                { onSuccess: () => { toast.success("Tenaga teknis ditugaskan"); setAssignOpen(false); } },
+              )}
+            >
+              {savePersonnel.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              Tugaskan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Konfirmasi lepas penugasan — data & riwayat presensi tetap tersimpan */}
       <Dialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-base">Hapus Tenaga Teknis?</DialogTitle>
+            <DialogTitle className="text-base">Lepas Penugasan?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {sortedPersonnel.find((p) => p.id === deleteTarget)?.name} akan dihapus beserta seluruh data kehadirannya.
+            {sortedPersonnel.find((p) => p.id === deleteTarget)?.name} dilepas dari lokasi ini dan kembali
+            berstatus &ldquo;Belum ditugaskan&rdquo;. Data pribadi & riwayat presensinya tetap tersimpan
+            di menu Tenaga Teknis.
           </p>
           <DialogFooter className="gap-2">
             <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>Batal</Button>
             <Button
               variant="destructive"
               size="sm"
-              disabled={deletePersonnel.isPending}
-              onClick={() => deletePersonnel.mutate(deleteTarget!, { onSuccess: () => setDeleteTarget(null) })}
+              disabled={savePersonnel.isPending}
+              onClick={() => savePersonnel.mutate(
+                { id: deleteTarget!, data: { locationId: null } },
+                { onSuccess: () => { toast.success("Penugasan dilepas"); setDeleteTarget(null); } },
+              )}
             >
-              {deletePersonnel.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              Hapus
+              {savePersonnel.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              Lepas
             </Button>
           </DialogFooter>
         </DialogContent>
